@@ -18,7 +18,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password','userimage'
+        'name', 'email', 'password','userimage', 'race'
     ];
 
     /**
@@ -39,19 +39,11 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     }
 
     /**
-     * Строение есть у многих пользователей.
-     */
-    public function buildings()
-    {
-        return $this->belongsToMany(User::class);
-    }
-
-    /**
      * Флоты есть у многих пользователей.
      */
     public function fleets()
     {
-        return $this->belongsToMany(User::class);
+        return $this->hasMany(Fleet::class, 'owner_id');
     }
 
 

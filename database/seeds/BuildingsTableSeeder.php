@@ -11,7 +11,7 @@ class BuildingsTableSeeder extends Seeder
      */
     public function run()
     {
-        // create 50 buildings using the user factory
+        // create 50 buildings using the building factory
         factory(App\Building::class, 50)->create();
     }
 }

@@ -16,6 +16,7 @@ $factory->define(App\User::class, function (Faker\Generator $faker) {
     return [
         'name'     => $faker->name,
         'email'    => $faker->unique()->email,
+        'race'     => $faker->randomElement(['1', '2']),
         'password' => app('hash')->make('12345'),
     ];
 });
@@ -43,10 +44,11 @@ $factory->define(App\Planet::class, function (Faker\Generator $faker) {
     ];
 });
 
+//buildings
 $factory->define(App\Building::class, function (Faker\Generator $faker) {
     return [
-        'name'                  => $faker->unique()->colorName,
-        'description'           => $faker->unique()->colorName,
+        'name'                  => $faker->colorName,
+        'description'           => $faker->colorName,
         'cost_metal'            => $faker->randomNumber(2),
         'cost_crystal'          => $faker->randomNumber(2),
         'cost_gas'              => $faker->randomNumber(2),
@@ -59,5 +61,4 @@ $factory->define(App\Building::class, function (Faker\Generator $faker) {
         'type'                  => $faker->randomElement(array('1', '2', '3', '4', '5')),
         'race'                  => $faker->randomElement(array('1', '2')),
     ];
-
 });

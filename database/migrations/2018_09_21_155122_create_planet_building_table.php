@@ -14,7 +14,7 @@ class CreatePlanetBuildingTable extends Migration
     public function up()
     {
         Schema::create('planet_building', function (Blueprint $table) {
-            $table->increments('id')->unsigned();
+//            $table->increments('id')->unsigned();
             $table->integer('planet_id')->unsigned();
             $table->foreign('planet_id')->references('id')
                 ->on('planets')->onDelete('cascade');

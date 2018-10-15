@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call([UsersTableSeeder::class,
                      PlanetsTableSeeder::class,
                      BuildingsTableSeeder::class,
+                     BuildingPlanetTableSeeder::class,
         ]);
         Model::reguard();
     }
