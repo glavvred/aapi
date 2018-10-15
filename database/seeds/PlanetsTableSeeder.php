@@ -12,7 +12,7 @@ class PlanetsTableSeeder extends Seeder
     public function run()
     {
 //        // create 30000 planets using the user factory
-        factory(App\Planet::class, 30)->create();
+        factory(App\Planet::class, 30000)->create();
 
 
     }

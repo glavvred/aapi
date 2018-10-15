@@ -14,17 +14,18 @@ class BuildingPlanetTableSeeder extends Seeder
         $planets = App\Planet::with('owner')->get();
         $planets->each(function($p){
             $race = $p->owner()->first()->race;
-            $building = DB::table('buildings')->where('race', $race)->first();
-            $num = random_int(0,1);
+            $building = DB::table('buildings')->where('race', $race)->get();
+            $num = random_int(0,10);
             for ($i=1; $i < $num; $i++){
                 echo 'num: '.$num .', ';
                 echo 'pid: '.$p->id. ', ';
-                $p->buildings()->attach($p->id, [
-                    'building_id' => $building->id,
+                echo 'bid: '.$building[$i]->id. ', ';
+
+                $p->buildings()->attach($p->id,[
+                    'building_id' => $building[$i]->id,
                     'level' => random_int(1,20),
                     'destroying' => 0]);
             }
-
         });
     }
 }
