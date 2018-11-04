@@ -40,42 +40,53 @@ class TechController extends Controller
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
 
-        $techAvailable = Technology::where('race', $user->race);
+        $techAvailableList = Technology::where('race', $user->race)->get();
 
-        foreach ($techAvailable as $ta) {
-            var_dump($ta->name);
+        $result = [];
 
-        }
-
-        $techList = $user->technologies;
-        $res = [];
-
-        foreach ($techList as $tech) {
-            $currentPrice = app('App\Http\Controllers\BuildingController')
-                ->calcLevelResourceCost($tech->pivot->level,
-                    [
-                        'metal' => $tech->cost_metal,
-                        'crystal' => $tech->cost_crystal,
-                        'gas' => $tech->cost_gas,
-                        'dark_matter' => $tech->dark_matter_cost,
-                        'time' => $tech->cost_time,
-                    ]);
-
-            $res[] = [
-                'id' => $tech->id,
-                'name' => $tech->name,
-                'description' => $tech->description,
-                'type' => $tech->type,
-                'race' => $tech->race,
-                'resources' => $currentPrice,
-                'level' => $tech->pivot->level,
-                'startTime' => $tech->pivot->startTime,
-                'timeToBuild' => $tech->pivot->timeToBuild,
-                'created_at' => $tech->pivot->created_at,
-                'updated_at' => $tech->pivot->updated_at,
+        foreach ($techAvailableList as $technology) {
+            $baseCost = [
+                'metal' => $technology->cost_metal,
+                'crystal' => $technology->cost_crystal,
+                'gas' => $technology->cost_gas,
+                'dark_matter' => $technology->dark_matter_cost,
+                'time' => $technology->cost_time,
             ];
+
+            $res = [
+                'id' => $technology->id,
+                'name' => $technology->name,
+                'description' => $technology->description,
+                'type' => $technology->type,
+                'race' => $technology->race,
+                'resources' => [
+                    'base' => $baseCost,
+                    'base_per_hour' => $baseCost,
+                ]
+            ];
+
+            $techAtUser = $user->technologies()
+                ->wherePivot('owner_id', $user->id)
+                ->wherePivot('technology_id', $technology->id)
+                ->first();
+
+
+            if (!empty($techAtUser)) {
+                $currentPrice = app('App\Http\Controllers\BuildingController')
+                    ->calcLevelResourceCost($techAtUser->pivot->level, $baseCost);
+
+                $res['level'] = $techAtUser->pivot->level;
+                $res['startTime'] = $techAtUser->pivot->startTime;
+                $res['timeToBuild'] = $techAtUser->pivot->timeToBuild;
+                $res['created_at'] = Carbon::parse($techAtUser->pivot->created_at)->format('Y-m-d H:i:s');
+                $res['updated_at'] = Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s');
+                $res['resources']['current'] = $currentPrice;
+                $res['resources']['current_per_hour'] = $currentPrice;
+            }
+            $result[] = $res;
         }
-        return response()->json($res, 200);
+
+        return response()->json($result, 200);
 
     }
 
@@ -85,8 +96,8 @@ class TechController extends Controller
      */
     public function showMyTech(Request $request)
     {
-        $user = $request->auth->id;
-        $res = User::find($user)->technologies;
+        $userId = $request->auth->id;
+        $res = User::all()->find($userId)->technologies;
 
         return response()->json($res, 200);
     }
@@ -99,9 +110,9 @@ class TechController extends Controller
      */
     public function showOneTech(Request $request, $planetId, $techId)
     {
-        $user = User::find($request->auth->id);
-        $planet = Planet::find($planetId);
-        $tech = Technology::find($techId);
+        $user = User::all()->find($request->auth->id);
+        $planet = Planet::all()->find($planetId);
+        $tech = Technology::all()->find($techId);
 
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
@@ -122,7 +133,7 @@ class TechController extends Controller
                     'gas' => $tech->cost_gas,
                     'dark_matter' => $tech->dark_matter_cost,
                     'time' => $tech->cost_time,
-                    ],
+                ],
                 'level' => 0,
             ];
             return response()->json(['status' => 'error', 'message' => 'race mismatch', 'info' => $res], 200);
@@ -156,7 +167,7 @@ class TechController extends Controller
             ];
             return response()->json($res, 200);
         } else //level 0 tech
-            return response()->json( [
+            return response()->json([
                 'id' => $tech->id,
                 'name' => $tech->name,
                 'description' => $tech->description,
@@ -168,7 +179,7 @@ class TechController extends Controller
                     'gas' => $tech->cost_gas,
                     'dark_matter' => $tech->dark_matter_cost,
                     'time' => $tech->cost_time,
-                    ],
+                ],
                 'level' => 0,
                 'startTime' => null,
                 'timeToBuild' => null,
@@ -185,16 +196,16 @@ class TechController extends Controller
      */
     public function upgradeTech(Request $request, $id, $tid)
     {
-        $user = User::find($request->auth->id);
+        $user = User::all()->find($request->auth->id);
 
-        $planet = Planet::find($id);
+        $planet = Planet::all()->find($id);
 
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
 
-        $tech = Technology::find($tid);
+        $tech = Technology::all()->find($tid);
 
         if ($user->race != $tech->race) {
             return response()->json(['status' => 'error', 'message' => 'race mismatch'], 403);
