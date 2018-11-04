@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateFleetsTable extends Migration
+class CreateRoutesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,7 +13,7 @@ class CreateFleetsTable extends Migration
      */
     public function up()
     {
-        Schema::create('fleets', function (Blueprint $table) {
+        Schema::create('routes', function (Blueprint $table) {
             $table->increments('id')->unsigned();
 
             $table->integer('owner_id')->unsigned();
@@ -24,11 +24,20 @@ class CreateFleetsTable extends Migration
             $table->foreign('coordinate_id')->references('id')
                 ->on('planets')->onDelete('cascade');
 
+            $table->integer('route_id')->unsigned()->nullable();
+            $table->foreign('route_id')->references('id')
+                ->on('routes')->onDelete('cascade');
+
             $table->integer('captain_id')->unsigned()->nullable();
             $table->foreign('captain_id')->references('id')
-                ->on('captains')->onDelete('cascade');
+                ->on('routes')->onDelete('cascade');
+
+            $table->enum('order', ['transport, defence, transfer, colonization, attack'])->nullable();
+
+            $table->integer('order_param')->unsigned()->nullable();
 
             $table->timestamps();
+
         });
     }
 
@@ -39,6 +48,6 @@ class CreateFleetsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('fleets');
+        Schema::dropIfExists('routes');
     }
 }

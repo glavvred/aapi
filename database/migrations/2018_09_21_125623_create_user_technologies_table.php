@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreatePlanetBuildingTable extends Migration
+class CreateUserTechnologiesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,21 +13,19 @@ class CreatePlanetBuildingTable extends Migration
      */
     public function up()
     {
-        Schema::create('planet_building', function (Blueprint $table) {
-            $table->integer('planet_id')->unsigned();
-            $table->foreign('planet_id')->references('id')
-                ->on('planets')->onDelete('cascade');
+        Schema::create('user_technologies', function (Blueprint $table) {
+            $table->integer('owner_id')->unsigned();
+            $table->foreign('owner_id')->references('id')
+                ->on('users')->onDelete('cascade');
 
-            $table->integer('building_id')->unsigned();
-            $table->foreign('building_id')->references('id')
-                ->on('buildings')->onDelete('cascade');
+            $table->integer('technology_id')->unsigned();
+            $table->foreign('technology_id')->references('id')
+                ->on('technologies')->onDelete('cascade');
 
             $table->integer('level')->unsigned();
             $table->timestamp('startTime', 0)->nullable();
             $table->integer('timeToBuild')->nullable();
-            $table->boolean('destroying');
             $table->timestamps();
-
         });
     }
 
@@ -38,6 +36,6 @@ class CreatePlanetBuildingTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('planet_building');
+        Schema::dropIfExists('user_technologies');
     }
 }

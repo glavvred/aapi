@@ -15,10 +15,11 @@ class Planet extends Model
      * @var array
      */
     protected $fillable = [
-        'name', 'owner_id', 'type',
+        'name', 'owner_id', 'type', 'classType',
+        'slots', 'temperature', 'diameter', 'density',
         'coordinateX', 'coordinateY', 'orbit',
         'metal', 'crystal', 'gas',
-        'updated_at'
+        'created_at', 'updated_at'
     ];
 
     /**
@@ -35,7 +36,7 @@ class Planet extends Model
      */
     public function owner()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'owner_id', 'id');
     }
 
     /**
@@ -49,14 +50,33 @@ class Planet extends Model
     }
 
     /**
-     * Флоты на планете
+     * Корабли на планете
      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
-    public function fleet()
+    public function ships()
     {
-        return $this->belongsToMany(Fleet::class, 'planet_fleet')
-            ->withPivot('quantity', 'planet_origin', 'owner_id');
+        return $this->belongsToMany(Ship::class, 'planet_ships')
+            ->withPivot('quantity');
     }
+
+    /**
+     * Флоты на планете
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function fleets()
+    {
+        return $this->hasMany(Fleet::class);
+    }
+
+    /**
+     * Губернаторы на планете
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function governors()
+    {
+        return $this->belongsToMany(Governor::class, 'coordinate_governors', 'coordinate_id');
+    }
+
 }
 
 

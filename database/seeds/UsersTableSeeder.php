@@ -17,6 +17,7 @@ class UsersTableSeeder  extends Seeder
             'name' => 'test user 1',
             'email' => 'testuser1@gmail.com',
             'race' => 1,
+            'alliance_id' => 1,
             'password' => app('hash')->make('12345'),
         ]);
 
@@ -24,10 +25,11 @@ class UsersTableSeeder  extends Seeder
             'name' => 'test user 2',
             'email' => 'testuser2@gmail.com',
             'race' => 2,
+            'alliance_id' => 2,
             'password' => app('hash')->make('12345'),
         ]);
 
-        // create 10 users using the user factory
-        factory(App\User::class, 8)->create();
+        // create 30 users using the user factory
+        factory(App\User::class, 28)->create();
     }
 }

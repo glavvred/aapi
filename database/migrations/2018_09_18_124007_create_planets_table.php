@@ -15,10 +15,14 @@ class CreatePlanetsTable extends Migration
     {
         Schema::create('planets', function (Blueprint $table) {
             $table->increments('id')->unsigned();
-            $table->integer('owner_id')->unsigned();
+            $table->integer('owner_id')->unsigned()->nullable();
             $table->foreign('owner_id')->references('id')
                 ->on('users')->onDelete('cascade');
             $table->string('name');
+            $table->integer('slots');
+            $table->integer('temperature');
+            $table->integer('diameter');
+            $table->integer('density');
             $table->integer('galaxy');
             $table->integer('coordinateX');
             $table->integer('coordinateY');

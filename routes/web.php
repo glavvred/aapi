@@ -53,7 +53,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
             $router->group(['prefix' => '{gid}'], function () use ($router) {
 
                 //solar systems
-                $router->get('{xc}/{yc}',  ['uses' => 'PlanetController@showSolarSystem']);
+                $router->get('{xc}/{yc}', ['uses' => 'PlanetController@showSolarSystem']);
 
                 //planets
                 $router->group(['prefix' => '{xc}/{yc}'], function () use ($router) {
@@ -71,12 +71,24 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->put('planets/{id}/buildings/{bid}/upgrade', ['uses' => 'BuildingController@upgradeBuilding']);
         $router->put('planets/{id}/buildings/{bid}/downgrade', ['uses' => 'BuildingController@downgradeBuilding']);
 
-        $router->get('fleet', ['uses' => 'FleetController@showMyFleet']);
+        //tech
+        $router->get('technologies', ['uses' => 'TechController@showMyTech']); //shortcut
+        $router->get('planets/{id}/technologies', ['uses' => 'TechController@showTechByPlanet']);
+        $router->get('planets/{id}/technologies/{tid}', ['uses' => 'TechController@showOneTech']);
+        $router->put('planets/{id}/technologies/{tid}/upgrade', ['uses' => 'TechController@upgradeTech']);
 
-        $router->get('planets/{id}/fleet', ['uses' => 'FleetController@showFleetAtPlanet']);
-        $router->get('planets/{id}/fleet/{fid}', ['uses' => 'FleetController@showShipProperties']);
-        $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'FleetController@build']);
+        $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
 
+        $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
+        $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showShipProperties']);
+        $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'ShipController@build']);
+
+
+        //comments
+        $router->get('comments', ['uses' => 'CommentsController@showAllMyComments']);
+
+        //governors
+        $router->get('planets/{id}/governors', ['uses' => 'GovernorController@showGovernorAtPlanet']);
 
     });
 

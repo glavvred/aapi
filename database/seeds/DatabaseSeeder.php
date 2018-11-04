@@ -14,10 +14,18 @@ class DatabaseSeeder extends Seeder
     {
         Model::unguard();
         // Register the user seeder
-        $this->call([UsersTableSeeder::class,
-                     PlanetsTableSeeder::class,
-                     BuildingsTableSeeder::class,
-                     BuildingPlanetTableSeeder::class,
+        $this->call([
+            UsersTableSeeder::class,
+            AllianceTableSeeder::class,
+            PlanetsTableSeeder::class,
+            WreckagesTableSeeder::class,
+            CommentsTableSeeder::class,
+            BuildingsTableSeeder::class,
+            ShipsTableSeeder::class,
+            BuildingPlanetTableSeeder::class,
+            ShipPlanetTableSeeder::class,
+            GovernorsTableSeeder::class,
+            TechnologiesTableSeeder::class,
         ]);
         Model::reguard();
     }

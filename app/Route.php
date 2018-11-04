@@ -4,10 +4,10 @@ namespace App;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Fleet extends Model
+class Route extends Model
 {
 
-    public $timestamps = false;
+    public $timestamps = true;
 
     /**
      * The attributes that are mass assignable.
@@ -15,9 +15,13 @@ class Fleet extends Model
      * @var array
      */
     protected $fillable = [
+        'parent_id',
         'owner_id',
-        'coordinateId',
-        'captainId'
+        'fleet_id',
+        'coordinate_id',
+        'destination_id',
+        'order',
+
     ];
 
     /**
@@ -29,7 +33,7 @@ class Fleet extends Model
     ];
 
     /**
-     * Владелец флота
+     * Владелец маршрута
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function owner()
@@ -38,30 +42,37 @@ class Fleet extends Model
     }
 
     /**
-     * Текущая координата
+     * Координата входа
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function coordinate()
+    public function origin()
     {
         return $this->belongsTo(Planet::class);
     }
 
     /**
-     * Маршрут
+     * Координата выхода
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function route()
+    public function destination()
     {
-        return $this->belongsTo(Route::class);
+        return $this->belongsTo(Planet::class);
     }
 
     /**
-     * Капитан
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function captain()
+    public function parent()
     {
-        return $this->belongsTo(Captain::class);
+        return $this->belongsTo(Route::class,'parent_id')->where('parent_id',0)->with('parent');
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function children()
+    {
+        return $this->hasOne(Route::class,'parent_id')->with('children');
     }
 
 }

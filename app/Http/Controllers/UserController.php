@@ -42,6 +42,7 @@ class UserController extends Controller
 
     /**
      * @param $id
+     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function showOneUser(Request $request, $id)

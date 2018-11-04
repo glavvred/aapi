@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateFleetsTable extends Migration
+class CreateCommentsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,22 +13,24 @@ class CreateFleetsTable extends Migration
      */
     public function up()
     {
-        Schema::create('fleets', function (Blueprint $table) {
+        Schema::create('comments', function (Blueprint $table) {
             $table->increments('id')->unsigned();
 
             $table->integer('owner_id')->unsigned();
             $table->foreign('owner_id')->references('id')
                 ->on('users')->onDelete('cascade');
 
-            $table->integer('coordinate_id')->unsigned();
-            $table->foreign('coordinate_id')->references('id')
-                ->on('planets')->onDelete('cascade');
+            $table->integer('coordinateX')->unsigned();
+            $table->integer('coordinateY')->unsigned();
+            $table->integer('orbit')->nullable()->unsigned();
 
-            $table->integer('captain_id')->unsigned()->nullable();
-            $table->foreign('captain_id')->references('id')
-                ->on('captains')->onDelete('cascade');
+            $table->string('comment');
+            $table->text('description');
+
+            $table->boolean('share_with_alliance')->nullable();
 
             $table->timestamps();
+
         });
     }
 
@@ -39,6 +41,6 @@ class CreateFleetsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('fleets');
+        Schema::dropIfExists('comments');
     }
 }

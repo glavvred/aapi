@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Comments;
 use App\User;
+use App\Wreckage;
 use Illuminate\Http\Request;
 use App\Planet;
 
@@ -54,19 +56,51 @@ class PlanetController extends Controller
     {
         $planet = Planet::where('id', $planetId)->first();
 
-        //моя планета
-        if ($planet->owner_id == $request->auth->id) {
-            $ref = app(BuildingController::class)->refreshPlanet(Planet::where('id', $planetId)->first());
-            $userData = User::find($request->auth->id)->first(['id', 'name', 'userimage']);
-        }
-        //не моя планета
-        else {
-            $ref = array();
-            $planet->makeHidden(['metal', 'crystal', 'gas', 'created_at', 'updated_at']);
-            $userData = User::find($planet->owner_id)->first(['id', 'name', 'userimage']);
+        if (!empty($planet->owner_id)) {
+            //моя планета
+            if ($planet->owner_id == $request->auth->id) {
+                $ref = app(BuildingController::class)->refreshPlanet(Planet::where('id', $planetId)->first());
+                $userData = User::find($request->auth->id)->first(['id', 'name', 'userimage']);
+                $ref['slots'] = app(BuildingController::class)->slotsAvailable($planet);
+            }
+            //не моя планета
+            else {
+                $ref = [];
+                $planet->makeHidden(['metal', 'crystal', 'gas', 'created_at', 'updated_at']);
+                $userData = User::find($planet->owner_id)->first(['id', 'name', 'userimage']);
+            }
+        } else {
+            $userData = [];
+            $ref = [];
         }
 
-        return response()->json(['userData' => $userData, 'planet' => $planet, 'ownData' => $ref]);
+        $myAlliance = User::where('alliance_id', $request->auth->alliance_id)->pluck('id')->toArray();
+
+        //my comments not shared
+        $comments['own'] = Comments::where(
+                    'coordinateX', $planet->coordinateX)
+            ->where('coordinateY', $planet->coordinateY)
+            ->where('orbit', $planet->orbit)
+            ->where('share_with_alliance', 0)
+            ->where('owner_id', $request->auth->id)
+            ->get(['id', 'owner_id', 'comment', 'description', 'share_with_alliance', 'created_at', 'updated_at']);
+
+        //my guild comments - shared
+        $comments['alliance'] = Comments::where(
+                    'coordinateX', $planet->coordinateX)
+            ->where('coordinateY', $planet->coordinateY)
+            ->where('orbit', $planet->orbit)
+            ->where('share_with_alliance', 1)
+            ->whereIn('owner_id', $myAlliance)
+            ->get(['id', 'owner_id', 'comment', 'description', 'share_with_alliance', 'created_at', 'updated_at']);
+
+        return response()->json([
+            'userData' => $userData,
+            'planet' => $planet,
+            'ownData' => $ref,
+            'comments' => $comments,
+            'wreckage' => app(WreckagesController::class)->showWreckageOverPlanet($planet),
+        ]);
     }
 
     /**

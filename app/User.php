@@ -3,6 +3,7 @@
 namespace App;
 
 use Illuminate\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Laravel\Lumen\Auth\Authorizable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -18,7 +19,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password','userimage', 'race'
+        'name', 'email', 'password','userimage', 'race', 'alliance_id'
     ];
 
     /**
@@ -39,6 +40,22 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     }
 
     /**
+     * Технологии юзера
+     * @return BelongsToMany
+     */
+    public function technologies() : BelongsToMany
+    {
+        return $this->belongsToMany(Technology::class,'user_technologies', 'owner_id')
+            ->withPivot(['level',
+                'startTime',
+                'timeToBuild',
+                ])
+        ->withTimestamps();
+
+//       todo: ->using(TechnologyAtUser::class);
+    }
+
+    /**
      * Флоты есть у многих пользователей.
      */
     public function fleets()
@@ -46,6 +63,13 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         return $this->hasMany(Fleet::class, 'owner_id');
     }
 
+    /**
+     * Пользователь может состоять только в одном альянсе.
+     */
+    public function alliance()
+    {
+        return $this->hasOne('App\Alliance');
+    }
 
 
 }
