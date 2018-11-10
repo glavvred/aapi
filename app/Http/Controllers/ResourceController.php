@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Building;
 use Illuminate\Http\Request;
 use Psr\Log\InvalidArgumentException;
+use MoneyMath\Decimal2;
+use MoneyMath\Currency;
 
 
 /**
@@ -84,6 +86,8 @@ class ResourceController extends Controller
             $gas = $costConstantResources->gas;
             $energy = $costConstantResources->energy;
 
+            $x = 0;
+
             $string_processed = preg_replace_callback(
                 '~\{\$(.*?)\}~si',
                 function ($match) use ($metal, $crystal, $gas, $energy, $multiplier, $level) {
@@ -91,7 +95,7 @@ class ResourceController extends Controller
                 },
                 $resource);
 
-            eval('$x = intval(' . $string_processed . ");");
+            eval('$x = new Decimal2(' . $string_processed . ");");
             $costResources[$key] = $x;
         };
 
