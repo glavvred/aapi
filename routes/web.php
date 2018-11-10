@@ -25,6 +25,11 @@ $router->get('/db-test', function () {
 
 $router->group(['prefix' => 'api'], function () use ($router) {
 
+    //test
+    $router->get('test/{bid}/level/{level}', 'ResourceController@test');
+    $router->get('test/{bid}', 'ResourceController@testMany');
+    $router->get('test', 'ResourceController@defaultJson');
+
     //auth
     $router->group(['prefix' => 'auth'], function () use ($router) {
         $router->get('login', 'AuthController@authenticate');
@@ -70,6 +75,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('planets/{id}/buildings/{bid}', ['uses' => 'BuildingController@showOneBuilding']);
         $router->put('planets/{id}/buildings/{bid}/upgrade', ['uses' => 'BuildingController@upgradeBuilding']);
         $router->put('planets/{id}/buildings/{bid}/downgrade', ['uses' => 'BuildingController@downgradeBuilding']);
+        $router->put('planets/{id}/buildings/{bid}/cancel', ['uses' => 'BuildingController@cancelBuilding']);
 
         //tech
         $router->get('technologies', ['uses' => 'TechController@showMyTech']); //shortcut

@@ -97,7 +97,7 @@ class TechController extends Controller
     public function showMyTech(Request $request)
     {
         $userId = $request->auth->id;
-        $res = User::all()->find($userId)->technologies;
+        $res = User::find($userId)->technologies;
 
         return response()->json($res, 200);
     }
@@ -110,9 +110,9 @@ class TechController extends Controller
      */
     public function showOneTech(Request $request, $planetId, $techId)
     {
-        $user = User::all()->find($request->auth->id);
-        $planet = Planet::all()->find($planetId);
-        $tech = Technology::all()->find($techId);
+        $user = User::find($request->auth->id);
+        $planet = Planet::find($planetId);
+        $tech = Technology::find($techId);
 
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
@@ -196,9 +196,9 @@ class TechController extends Controller
      */
     public function upgradeTech(Request $request, $id, $tid)
     {
-        $user = User::all()->find($request->auth->id);
+        $user = User::find($request->auth->id);
 
-        $planet = Planet::all()->find($id);
+        $planet = Planet::find($id);
 
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);

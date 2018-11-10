@@ -24,7 +24,7 @@ class PlanetController extends Controller
         //
     }
 
-    /**
+    /**1
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -59,7 +59,7 @@ class PlanetController extends Controller
         if (!empty($planet->owner_id)) {
             //моя планета
             if ($planet->owner_id == $request->auth->id) {
-                $ref = app(BuildingController::class)->refreshPlanet(Planet::where('id', $planetId)->first());
+                $ref = app(BuildingController::class)->refreshPlanet($request, Planet::where('id', $planetId)->first());
                 $userData = User::find($request->auth->id)->first(['id', 'name', 'userimage']);
                 $ref['slots'] = app(BuildingController::class)->slotsAvailable($planet);
             }

@@ -68,24 +68,14 @@ $factory->define(App\Planet::class, function (Faker\Generator $faker) {
 
     if (($orbit < 10) || ($orbit > 20)) {
         $owner = null;
-        $name = '{orbit} ' . $faker->colorName;
     } else {
-        $name = null;
         $users = \App\User::all()->pluck('id')->toArray();
         if (rand(0,100) <= 10)
             $owner = $faker->randomElement($users);
         else
             $owner =  null;
     }
-
-    if (empty($name)) {
-        if (empty($owner)) {
-            $name = '{abandoned} ' . $faker->streetName;
-        } else {
-            $name = '{planet} ' . $faker->streetName;
-        }
-    }
-
+    $name = $faker->colorName;
     echo $orbit . ' ' . $name . "\r\n";
 
     return [
