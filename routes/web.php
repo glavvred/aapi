@@ -26,9 +26,11 @@ $router->get('/db-test', function () {
 $router->group(['prefix' => 'api'], function () use ($router) {
 
     //test
+    $router->get('test/resources/', 'ResourceController@defaultJsonResources');
+    $router->get('test/requirements', 'ResourceController@defaultJsonRequirements');
+    $router->get('test/upgrades', 'ResourceController@defaultJsonUpgrades');
     $router->get('test/{bid}/level/{level}', 'ResourceController@test');
     $router->get('test/{bid}', 'ResourceController@testMany');
-    $router->get('test', 'ResourceController@defaultJson');
 
     //auth
     $router->group(['prefix' => 'auth'], function () use ($router) {
