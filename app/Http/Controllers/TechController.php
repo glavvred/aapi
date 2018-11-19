@@ -45,24 +45,12 @@ class TechController extends Controller
         $result = [];
 
         foreach ($techAvailableList as $technology) {
-            $baseCost = [
-                'metal' => $technology->cost_metal,
-                'crystal' => $technology->cost_crystal,
-                'gas' => $technology->cost_gas,
-                'dark_matter' => $technology->dark_matter_cost,
-                'time' => $technology->cost_time,
-            ];
-
             $res = [
                 'id' => $technology->id,
                 'name' => $technology->name,
                 'description' => $technology->description,
                 'type' => $technology->type,
                 'race' => $technology->race,
-                'resources' => [
-                    'base' => $baseCost,
-                    'base_per_hour' => $baseCost,
-                ]
             ];
 
             $techAtUser = $user->technologies()
@@ -70,18 +58,20 @@ class TechController extends Controller
                 ->wherePivot('technology_id', $technology->id)
                 ->first();
 
+            $level = !empty($techAtUser->pivot->level) ? $techAtUser->pivot->level : 0;
+
+            $resources = app('App\Http\Controllers\ResourceController')
+                ->parseAll($request, $technology, $level, $planetId);
+
+            $res['resources']['current'] = $resources['cost'];
 
             if (!empty($techAtUser)) {
-                $currentPrice = app('App\Http\Controllers\BuildingController')
-                    ->calcLevelResourceCost($techAtUser->pivot->level, $baseCost);
-
                 $res['level'] = $techAtUser->pivot->level;
                 $res['startTime'] = $techAtUser->pivot->startTime;
                 $res['timeToBuild'] = $techAtUser->pivot->timeToBuild;
                 $res['created_at'] = Carbon::parse($techAtUser->pivot->created_at)->format('Y-m-d H:i:s');
                 $res['updated_at'] = Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s');
-                $res['resources']['current'] = $currentPrice;
-                $res['resources']['current_per_hour'] = $currentPrice;
+
             }
             $result[] = $res;
         }
@@ -119,6 +109,13 @@ class TechController extends Controller
 
         $techAtUser = $user->technologies->find($techId);
 
+        $level = !empty($techAtUser->level) ? $techAtUser->level : 0;
+
+        $resources = app('App\Http\Controllers\ResourceController')
+            ->parseAll($tech, $level);
+
+        $res['resources']['current'] = $resources['cost'];
+
         //race check
         if ($user->race != $tech->race) {
             $res[] = [
@@ -128,11 +125,13 @@ class TechController extends Controller
                 'type' => $tech->type,
                 'race' => $tech->race,
                 'resources' => [
-                    'metal' => $tech->cost_metal,
-                    'crystal' => $tech->cost_crystal,
-                    'gas' => $tech->cost_gas,
-                    'dark_matter' => $tech->dark_matter_cost,
-                    'time' => $tech->cost_time,
+                    'current' => [
+                        'metal' => $tech->cost_metal,
+                        'crystal' => $tech->cost_crystal,
+                        'gas' => $tech->cost_gas,
+                        'dark_matter' => $tech->dark_matter_cost,
+                        'time' => $tech->cost_time,
+                    ],
                 ],
                 'level' => 0,
             ];
@@ -205,7 +204,7 @@ class TechController extends Controller
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
 
-        $tech = Technology::all()->find($tid);
+        $tech = Technology::find($tid);
 
         if ($user->race != $tech->race) {
             return response()->json(['status' => 'error', 'message' => 'race mismatch'], 403);

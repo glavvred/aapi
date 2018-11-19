@@ -13,9 +13,9 @@ class Bonus
 
     public function get(Request $request, int $planetId = null)
     {
-        $user = User::all()->find($request->auth->id)->first();
+        $user = User::find($request->auth->id)->first();
         if (!empty($planetId))
-            $planet = Planet::all()->find($planetId)->first();
+            $planet = Planet::find($planetId)->first();
 
         $res = [
             'powerUps' => $this->powerUp($user),

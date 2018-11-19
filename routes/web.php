@@ -29,8 +29,8 @@ $router->group(['prefix' => 'api'], function () use ($router) {
     $router->get('test/resources/', 'ResourceController@defaultJsonResources');
     $router->get('test/requirements', 'ResourceController@defaultJsonRequirements');
     $router->get('test/upgrades', 'ResourceController@defaultJsonUpgrades');
-    $router->get('test/{bid}/level/{level}', 'ResourceController@test');
-    $router->get('test/{bid}', 'ResourceController@testMany');
+    $router->get('test/{pid}/building/{bid}/level/{level}', 'ResourceController@test');
+    $router->get('test/{pid}/building/{bid}', 'ResourceController@testMany');
 
     //auth
     $router->group(['prefix' => 'auth'], function () use ($router) {

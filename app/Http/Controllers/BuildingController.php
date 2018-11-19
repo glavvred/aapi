@@ -42,39 +42,27 @@ class BuildingController extends Controller
             'description' => $building->description,
             'type' => $building->type,
             'race' => $building->race,
-            'resources' => [
-                'base' => [
-                    'metal' => $building->cost_metal,
-                    'crystal' => $building->cost_crystal,
-                    'gas' => $building->cost_gas,
-                    'time' => $building->cost_time,
-                    'dark_matter' => $building->dark_matter_cost,
-                ],
-                'base_per_hour' => [
-                    'metal' => $building->metal_ph,
-                    'crystal' => $building->crystal_ph,
-                    'gas' => $building->gas_ph,
-                ],
-            ],
         ];
-
-        //race check
-        if ($user->race != $building->race) {
-            return response()->json(['status' => 'error', 'message' => 'race mismatch', 'info' => $res], 200);
-        }
 
         $planet = Planet::find($id);
         $ref = $this->refreshPlanet($request, $planet);
         //fresh buildings data
         $buildingAtUser = $planet->buildings->find($bid);
 
+        $resources = [];
+
+        if (!empty($building->resources) || !empty($building->requirements) || !empty($building->upgrades)) {
+            $resources = app('App\Http\Controllers\ResourceController')
+                ->parseAll($building, $buildingAtUser->pivot->level);
+        }
+
+        $res['resources'] = [
+            'current' => $resources['cost'],
+            'current_per_hour' => $resources['production'],
+        ];
+
         //actual building at planet
         if (!empty($buildingAtUser)) {
-            $resourcesCurrent = $this->calcLevelResourceCost($buildingAtUser->pivot->level, $res['resources']['base']);
-
-            $res['resources']['current'] = $resourcesCurrent;
-            $res['resources']['current_per_hour'] = $resourcesCurrent;
-
             $res['level'] = $buildingAtUser->pivot->level;
             $res['startTime'] = $buildingAtUser->pivot->startTime;
             $res['timeToBuild'] = $buildingAtUser->pivot->timeToBuild;
@@ -195,34 +183,6 @@ class BuildingController extends Controller
     }
 
     /**
-     * TODO: move to Resource class
-     * @param $level
-     * @param array $levelOneResources
-     * @return mixed
-     */
-    public function calcLevelResourceCost($level, array $levelOneResources)
-    {
-        $res['metal'] = round($levelOneResources['metal'] * pow(1.55, $level));
-        $res['crystal'] = round($levelOneResources['crystal'] * pow(1.55, $level));
-        $res['gas'] = round($levelOneResources['gas'] * pow(1.55, $level));
-        $res['dark_matter'] = round($levelOneResources['dark_matter'] * pow(1.55, $level));
-        $res['time'] = $this->calcLevelTimeCost($level, $levelOneResources['time']);
-        return $res;
-    }
-
-    /**
-     * TODO: move to Resource class
-     *
-     * @param $level
-     * @param $levelOneTimeCost
-     * @return float
-     */
-    public function calcLevelTimeCost($level, $levelOneTimeCost)
-    {
-        return round($levelOneTimeCost * pow(1.55, $level));
-    }
-
-    /**
      * Show buildings list by planetId
      *
      * @param Request $request
@@ -249,20 +209,6 @@ class BuildingController extends Controller
                 'description' => $building->description,
                 'type' => $building->type,
                 'race' => $building->race,
-                'resources' => [
-                    'base' => [
-                        'metal' => $building->cost_metal,
-                        'crystal' => $building->cost_crystal,
-                        'gas' => $building->cost_gas,
-                        'time' => $building->cost_time,
-                        'dark_matter' => $building->dark_matter_cost,
-                    ],
-                    'base_per_hour' => [
-                        'metal' => $building->metal_ph,
-                        'crystal' => $building->crystal_ph,
-                        'gas' => $building->gas_ph,
-                    ],
-                ],
             ];
 
             $bap = $planet->buildings()
@@ -270,12 +216,21 @@ class BuildingController extends Controller
                 ->wherePivot('building_id', $building->id)
                 ->first();
 
+            if (!empty($bap->pivot)) {
+                $building_level = $bap->pivot->level;}
+            else
+                $building_level = 0;
+
+            $resources = app('App\Http\Controllers\ResourceController')
+                ->parseAll($request, $building, $building_level, $planetId);
+
+            $res[$building->id]['resources'] = [
+                'current' => $resources['cost'],
+                'current_per_hour' => $resources['production'],
+            ];
+
             //actual building at planet
             if (!empty($bap)) {
-                $resourcesCurrent = $this->calcLevelResourceCost($bap->pivot->level, $res[$building->id]['resources']['base']);
-
-                $res[$building->id]['resources']['current'] = $resourcesCurrent;
-                $res[$building->id]['resources']['current_per_hour'] = $resourcesCurrent;
 
                 $res[$building->id]['level'] = $bap->pivot->level;
                 $res[$building->id]['startTime'] = $bap->pivot->startTime;
@@ -293,14 +248,14 @@ class BuildingController extends Controller
      * Resource, slots check
      *
      * @param $request Request
-     * @param int $id Planet
-     * @param int $bid Building
+     * @param int $planetId Planet
+     * @param int $buildingId Building
      * @return \Illuminate\Http\JsonResponse
      */
-    public function upgradeBuilding(Request $request, int $id, int $bid)
+    public function upgradeBuilding(Request $request, int $planetId, int $buildingId)
     {
         //нашли планету
-        $planet = Planet::find($id);
+        $planet = Planet::find($planetId);
         if (!$planet)
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
         $ref = $this->refreshPlanet($request, $planet);
@@ -309,34 +264,28 @@ class BuildingController extends Controller
         if ($ref['buildingQued'] && ($ref['queTimeRemain'] > 0))
             return response()->json(['status' => 'error', 'message' => 'no slots available', 'time_remain' => $ref['queTimeRemain']], 403);
 
-        $building = Building::find($bid);
+        $building = Building::find($buildingId);
 
         //если нет на планете - создали с уровнем 0
-        $buildingAtPlanet = $planet->buildings()->where('building_id', $bid)->first();
+        $buildingAtPlanet = $planet->buildings()->where('building_id', $buildingId)->first();
 
         if (is_null($buildingAtPlanet)) {
-            $planet->buildings()->attach($bid);
-            $buildingAtPlanet = $planet->buildings->find($bid);
+            $planet->buildings()->attach($buildingId);
+            $buildingAtPlanet = $planet->buildings()->find($buildingId);
         }
 
         $level = !empty($buildingAtPlanet->pivot->level) ? $buildingAtPlanet->pivot->level : 0;
 
         //resources check
-        $resources = [
-            'metal' => $building->cost_metal,
-            'crystal' => $building->cost_crystal,
-            'gas' => $building->cost_gas,
-            'dark_matter' => $building->cost_dark_matter,
-            'time' => $building->cost_time,
-        ];
-        $resourcesAtLevel = $this->calcLevelResourceCost($level + 1, $resources);
+        $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
+            ->parseAll($request, $building, $level, $planetId);
 
-        if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel))
+        if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
 
-        $this->buy($planet, $resourcesAtLevel);
+        $this->buy($planet, $resourcesAtLevel['cost']);
 
-        $timeToBuild = $this->calcLevelTimeCost($level + 1, $buildingAtPlanet->cost_time);
+        $timeToBuild = $resourcesAtLevel['cost']['time'];
 
         $planet->buildings()->updateExistingPivot($buildingAtPlanet->id, [
             'level' => $level,
@@ -360,6 +309,7 @@ class BuildingController extends Controller
      */
     public function checkResourcesAvailable(Planet $planet, array $resourcesToCheck)
     {
+
         if ($planet &&
             ($resourcesToCheck['metal'] <= $planet->metal) &&
             ($resourcesToCheck['crystal'] <= $planet->crystal) &&
@@ -415,15 +365,8 @@ class BuildingController extends Controller
         $buildingAtPlanet = $planet->buildings()->find($bid);
 
         //resources refund
-        $resources = [
-            'metal' => - $building->cost_metal,
-            'crystal' => - $building->cost_crystal,
-            'gas' => - $building->cost_gas,
-            'time' => - $building->cost_time,
-            'dark_matter' => - $building->cost_dark_matter,
-        ];
-
-        $refund = $this->calcLevelResourceCost($buildingAtPlanet->pivot->level + 1, $resources);
+        $refund = $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
+            ->parseAll($building, $buildingAtPlanet->pivot->level);
 
         $this->buy($planet, $refund);
 
@@ -509,6 +452,34 @@ class BuildingController extends Controller
             'level' => $buildingAtPlanet->pivot->level - 1,
             'timeToBuild' => $this->calcLevelTimeCost($buildingAtPlanet->pivot->level - 1, $buildingAtPlanet->cost_time)
         ], 200);
+    }
+
+    /**
+     * TODO: move to Resource class
+     * @param $level
+     * @param array $levelOneResources
+     * @return mixed
+     */
+    public function calcLevelResourceCost($level, array $levelOneResources)
+    {
+        $res['metal'] = round($levelOneResources['metal'] * pow(1.55, $level));
+        $res['crystal'] = round($levelOneResources['crystal'] * pow(1.55, $level));
+        $res['gas'] = round($levelOneResources['gas'] * pow(1.55, $level));
+        $res['dark_matter'] = round($levelOneResources['dark_matter'] * pow(1.55, $level));
+        $res['time'] = $this->calcLevelTimeCost($level, $levelOneResources['time']);
+        return $res;
+    }
+
+    /**
+     * TODO: move to Resource class
+     *
+     * @param $level
+     * @param $levelOneTimeCost
+     * @return float
+     */
+    public function calcLevelTimeCost($level, $levelOneTimeCost)
+    {
+        return round($levelOneTimeCost * pow(1.55, $level));
     }
 
     /**

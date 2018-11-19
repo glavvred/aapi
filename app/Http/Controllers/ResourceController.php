@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Building;
+use App\Planet;
+use App\User;
 use Illuminate\Http\Request;
 use Psr\Log\InvalidArgumentException;
 
@@ -27,23 +29,27 @@ class ResourceController extends Controller
      * print characteristics for given level of givin building
      * @param Request $request
      * @param int $level
-     * @param int $bid
+     * @param int $planetId
+     * @param int $buildingId
      * @return string
      */
-    public function test(Request $request, int $level, int $bid)
+    public function test(Request $request, int $level, int $planetId, int $buildingId)
     {
-        $res = Building::find($bid);
+        $res = Building::find($buildingId);
 
-        return json_encode($this->parseAll(($res), $level));
+        $data = $this->parseAll($request, $res, $level, $planetId);
+        return json_encode($data);
     }
 
     /**
-     * Parse all fields (test)
-     * @param $jsonData
+     * Parse all fields
+     * @param $request Request
+     * @param $jsonData object
      * @param int $level
+     * @param int $planetId
      * @return array
      */
-    public function parseAll($jsonData, int $level = 1)
+    public function parseAll(Request $request, object $jsonData, int $level = 1, int $planetId)
     {
         $res = json_decode($jsonData->resources);
         $req = json_decode($jsonData->requirements);
@@ -52,16 +58,29 @@ class ResourceController extends Controller
         if (empty($res) || empty($req) || empty($upg))
             throw new InvalidArgumentException('Json decode error: ' . json_last_error());
 
+        if (empty($request->auth->id))
+            $userId = 2; //todo: test, remove from production
+        else
+            $userId = $request->auth->id;
+
+        $user = User::find($userId);
+
+        //assuming NO variables except level in technology bonus
+        $technologyBonus = $this->getAllCurrentTechnologiesBonus($user->id);
+        //using calculated tech bonuses in building bonuses
+        $techBuildingBonus = $this->getAllCurrentBuildingsBonus($technologyBonus, $planetId);
+
         //cost
-        $cost = $this->parseCost($res, $level);
+        $cost = $this->parseCost($res, $level, $techBuildingBonus['bonus']);
+
         //production
-        $production = $this->parseProduction($res, $level);
+        $production = $this->parseProduction($res, $level, $techBuildingBonus['bonus']);
 
         //requirements
-        $requirements = $this->parseRequirements($req, $level);
+        $requirements = $this->parseRequirements($req, $level, $techBuildingBonus['levels']);
 
         //upgrades
-        $upgrades = $this->parseUpgrades($upg, $level);
+        $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus['bonus']);
 
         return ['cost' => $cost,
             'production' => $production,
@@ -71,50 +90,262 @@ class ResourceController extends Controller
     }
 
     /**
+     * Gather all technologies with respective bonuses
+     * !assuming NOT using any other building|tech bonuses!
+     *
+     * @param int $userId
+     * @return array
+     */
+    public function getAllCurrentTechnologiesBonus(int $userId)
+    {
+        $user = User::find($userId);
+
+        $technologyLevels = $user->technologies()
+            ->wherePivot('owner_id', $userId)
+            ->get(['upgrades', 'level', 'name']);
+
+        $formulas = $constants = $result = $actualBonusByTech = $levels = [];
+
+        foreach ($technologyLevels as $techId => $technologyLevel) {
+            $level = $technologyLevel->level;
+
+            //get all upgrades - pick most recent - pack as an array
+            $categories = json_decode($technologyLevel->upgrades);
+            foreach ($categories as $category) {
+                foreach ($category as $key => $jsonDatum) {
+                    //pick most recent constant pack
+                    $currentConstants = [];
+                    if (!empty($jsonDatum->constant)) {
+                        foreach ($jsonDatum->constant as $levelConstant) {
+                            if ($levelConstant->level > $level)
+                                break;
+                            else
+                                $currentConstants = $levelConstant;
+                        }
+                    }
+
+                    //pick most recent formula pack
+                    $currentFormula = [];
+                    if (!empty($jsonDatum->formula)) {
+                        foreach ($jsonDatum->formula as $levelFormula) {
+                            if ($levelFormula->level > $level)
+                                break;
+                            else
+                                $currentFormula = $levelFormula;
+                        }
+                    }
+
+                    //each value in constants goes to corresponding variable with respective name
+                    foreach ($currentConstants as $ikey => $value) {
+                        if ($ikey == 'level')
+                            $constants[$key]['constants'][$ikey] = $level;
+                        $constants[$techId][$key]['constants'][$ikey] = $value;
+                    }
+
+                    //each value in formulas goes to corresponding variable with respective name
+                    foreach ($currentFormula as $ikey => $value) {
+                        if ($ikey == 'level')
+                            $constants[$key]['constants'][$ikey] = $level;
+                        $formulas[$techId][$key]['formula'] = $value;
+                    }
+                }
+            }
+            if (!empty($level))
+                $levels[$technologyLevel->name] = $level;
+        }
+
+        foreach ($formulas as $techId => $formula) { //tech
+            foreach ($formula as $key => $resource) { //formula in tech
+                $x = 0;
+
+                $const = $constants[$techId][$key]['constants'];
+                $level = $constants[$techId][$key]['constants']['level'];
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($const, $level) {
+                        return eval('return $const[\'' . $match[1] . '\'];');
+                    },
+                    $resource['formula']);
+
+                eval('$x = round(' . $string_processed . ");");
+
+                $actualBonusByTech[$techId][$key] = $x;
+            };
+        }
+
+        foreach ($actualBonusByTech as $bonusByTech) {
+            foreach ($bonusByTech as $key => $item) {
+                if (!empty($result[$key]))
+                    $result[$key] += $item;
+                else
+                    $result[$key] = $item;
+            }
+        }
+
+        return ['bonus' => $result, 'levels' => $levels];
+    }
+
+    /**
+     * Gather all buildings with respective bonuses
+     *
+     * @param array $bonuses
+     * @param int $planetId
+     * @return array
+     */
+    public function getAllCurrentBuildingsBonus(array $bonuses, int $planetId)
+    {
+        $planet = Planet::find($planetId);
+
+        $buildingLevels = $planet->buildings()
+            ->wherePivot('planet_id', $planetId)
+            ->get(['upgrades', 'level', 'name']);
+
+        $formulas = $constants = $result = $levels = $sums = [];
+
+        foreach ($buildingLevels as $buildingId => $buildingLevel) {
+            $level = $buildingLevel->level;
+
+            //get all upgrades - pick most recent - pack as an array
+            $categories = json_decode($buildingLevel->upgrades);
+            foreach ($categories as $category) {
+                foreach ($category as $key => $jsonDatum) {
+                    //pick most recent constant pack
+                    $currentConstants = [];
+                    if (!empty($jsonDatum->constant)) {
+                        foreach ($jsonDatum->constant as $levelConstant) {
+                            if ($levelConstant->level > $level)
+                                break;
+                            else
+                                $currentConstants = $levelConstant;
+                        }
+                    }
+
+                    //pick most recent formula pack
+                    $currentFormula = [];
+                    if (!empty($jsonDatum->formula)) {
+                        foreach ($jsonDatum->formula as $levelFormula) {
+                            if ($levelFormula->level > $level)
+                                break;
+                            else
+                                $currentFormula = $levelFormula;
+                        }
+                    }
+
+                    //each value in constants goes to corresponding variable with respective name
+                    foreach ($currentConstants as $ikey => $value) {
+                        if ($ikey == 'level')
+                            $constants[$buildingId][$key]['constants'][$ikey] = $level;
+                        $constants[$buildingId][$key]['constants'][$ikey] = $value;
+                    }
+
+                    //each value in formulas goes to corresponding variable with respective name
+                    foreach ($currentFormula as $ikey => $value) {
+                        if ($ikey == 'level')
+                            $constants[$buildingId][$key]['constants'][$ikey] = $level;
+                        $formulas[$buildingId][$key]['formula'] = $value;
+                    }
+                }
+            }
+
+            if (!empty($level))
+                $levels[$buildingLevel->name] = $level;
+        }
+
+        $actualBonusByBuilding = [];
+
+        foreach ($formulas as $buildingId => $formula) { //building
+            foreach ($formula as $key => $resource) { //formula in building
+                $x = 0;
+
+                $const = $constants[$buildingId][$key]['constants'];
+                $const = array_merge($const, $bonuses['bonus']);
+
+                $level = $const['level'];
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($const, $level) {
+                        return eval('return $const[\'' . $match[1] . '\'];');
+                    },
+                    $resource['formula']);
+
+                eval('$x = round(' . $string_processed . ");");
+
+                $actualBonusByBuilding[$buildingId][$key] = $x;
+            }
+        };
+
+        //compress building bonuses
+        foreach ($actualBonusByBuilding as $bonusByBuilding) {
+            foreach ($bonusByBuilding as $key => $item) {
+                if (!empty($result[$key]))
+                    $result[$key] += $item;
+                else
+                    $result[$key] = $item;
+            }
+        }
+
+        $bonus = $bonuses['bonus'];
+        foreach (array_keys($result + $bonus) as $key) {
+            $sums[$key] = (isset($result[$key]) ? $result[$key] : 0) + (isset($bonus[$key]) ? $bonus[$key] : 0);
+        }
+
+        return ['bonus' => $sums, 'levels' => array_merge($levels, $bonuses['levels'])];
+    }
+
+    /**
      * Parse cost helper
      *
      * @param $jsonDecoded
+     * @param array $bonuses calculated bonuses from technologies and buildings with levels
      * @param int $level
      * @return array
      */
-    private function parseCost($jsonDecoded, int $level)
+    private function parseCost($jsonDecoded, int $level, $bonuses)
     {
-        $cost = $jsonDecoded->cost;
-        $costConstantResources = $jsonDecoded->cost->constant->resources;
-        $levelCostFormulas = $cost->formula;
+        //pick most recent constant pack
+        $currentConstants = $costResources = [];
 
-        //resources
-        $currentCostFormula = [];
-        foreach ($levelCostFormulas as $levelFormula) {
+        foreach ($jsonDecoded->cost->constant as $levelConstant) {
+            if ($levelConstant->level > $level)
+                break;
+            else
+                $currentConstants = $levelConstant;
+        }
+
+        //pick most recent formula pack
+        $currentFormula = [];
+        foreach ($jsonDecoded->cost->formula as $levelFormula) {
             if ($levelFormula->level > $level)
                 break;
             else
-                $currentCostFormula = $levelFormula;
+                $currentFormula = $levelFormula;
         }
 
-        $costResources = [];
-        foreach ($currentCostFormula->resources as $key => $resource) {
+        $constants = $bonuses;
+        //each value in constants goes to corresponding variable with respective name
+        foreach ($currentConstants as $key => $value) {
+            $constants[$key] = $value;
+        }
+        $constants['level'] = $level;
+
+        foreach ($currentFormula as $key => $resource) {
+
             $x = 0;
-
-            $metal = $costConstantResources->metal;
-            $multiplier = $costConstantResources->multiplier;
-
-            $crystal = $costConstantResources->crystal;
-            $gas = $costConstantResources->gas;
-            $energy = $costConstantResources->energy;
-
-            $x = (0);
 
             $string_processed = preg_replace_callback(
                 '~\{\$(.*?)\}~si',
-                function ($match) use ($metal, $crystal, $gas, $energy, $multiplier, $level) {
-                    return eval('return $' . $match[1] . ';');
+                function ($match) use ($constants) {
+                    return eval('return $constants[\'' . $match[1] . '\'];');
                 },
                 $resource);
 
-            eval('$x = round(' . $string_processed . ",2);");
+            eval('$x = round(' . $string_processed . ");");
             $costResources[$key] = $x;
         };
+
+        $costResources['time'] = round(array_sum($costResources) / 10);
 
         return $costResources;
     }
@@ -122,186 +353,125 @@ class ResourceController extends Controller
     /**
      * Parse production helper
      *
+     * @param array $bonuses
      * @param $jsonDecoded
      * @param int $level
      * @return array
      */
-    private function parseProduction($jsonDecoded, int $level)
+    private function parseProduction($jsonDecoded, int $level, $bonuses)
     {
+        $productionResources = [];
 
-        $production = $jsonDecoded->production;
-        $productionConstant = $production->constant;
-        $levelProductionFormulas = $production->formula;
+        //pick most recent constant pack
+        $currentConstants = [];
+        foreach ($jsonDecoded->production->constant as $levelConstant) {
+            if ($levelConstant->level > $level)
+                break;
+            else
+                $currentConstants = $levelConstant;
+        }
 
-        //resources
-        $currentProductionFormula = [];
-        foreach ($levelProductionFormulas as $levelFormula) {
+        //pick most recent formula pack
+        $currentFormula = [];
+        foreach ($jsonDecoded->cost->formula as $levelFormula) {
             if ($levelFormula->level > $level)
                 break;
             else
-                $currentProductionFormula = $levelFormula;
+                $currentFormula = $levelFormula;
         }
 
-        $productionResources = [];
-        foreach ($currentProductionFormula as $key => $resource) {
-            if ($key == 'level')
-                break;
+        //adding bonuses from other entites as constants
+        $constants = $bonuses;
 
-            $metal = $crystal = $gas = $energy = 0;
+        //each value in constants goes to corresponding variable with respective name
+        foreach ($currentConstants as $key => $value) {
+            $constants[$key] = $value;
+        }
+        $constants['level'] = $level;
 
-            if (!empty($productionConstant->metal))
-                $metal = $productionConstant->metal->base;
+        foreach ($currentFormula as $key => $resource) {
 
-            if (!empty($productionConstant->crystal))
-                $crystal = $productionConstant->crystal->base;
-
-            if (!empty($productionConstant->gas))
-                $gas = $productionConstant->gas->base;
-
-            if (!empty($productionConstant->energy))
-                $energy = $productionConstant->energy->base;
-
-            $res = 0;
-            $multiplier = 0;
-
-            eval('$multiplier = $productionConstant->{$key}->multiplier;');
-            $temp = 0;
-            eval('$temp = $productionConstant->{$key}->base;');
-            $$key = $temp;
+            $x = 0;
 
             $string_processed = preg_replace_callback(
                 '~\{\$(.*?)\}~si',
-                function ($match) use ($key, $multiplier, $metal, $crystal, $gas, $energy) {
-                    return eval('return $' . $match[1] . ';');
+                function ($match) use ($constants) {
+                    return eval('return $constants[\'' . $match[1] . '\'];');
                 },
                 $resource);
 
-            eval('$res = round(' . $string_processed . ", 2);");
-            $productionResources[$key] = $res;
-
+            eval('$x = round(' . $string_processed . ");");
+            $productionResources[$key] = $x;
         };
+
+        $productionResources['time'] = round(array_sum($productionResources) / 10);
+
         return $productionResources;
     }
 
     /**
      * Parse Requirements helper
      *
+     * @param $techBuildingBonus
      * @param $jsonDecoded
      * @param int $level
      * @return array
      */
-    private function parseRequirements($jsonDecoded, int $level)
+    private function parseRequirements($jsonDecoded, int $level, $techBuildingBonus)
     {
+
         $res = [];
+        $cConstants['level'] = $level;
 
-        $building = $jsonDecoded->building;
-        $technology = $jsonDecoded->technology;
+        foreach ($jsonDecoded as $key => $category) { //building/tech/etc
+            if (!empty($category->formula) && !empty($category->constant)) {
 
-        $levelBuildingFormulas = $building->formula;
-        $levelTechFormulas = $technology->formula;
-
-        //building requirements
-        $currentBRFormula = [];
-        foreach ($levelBuildingFormulas as $levelFormula) {
-            if ($levelFormula->level > $level)
-                break;
-            else
-                $currentBRFormula = $levelFormula;
-        }
-
-        foreach ($currentBRFormula as $key => $building) {
-            if ($key == 'level')
-                continue;
-
-            $string_processed = preg_replace_callback(
-                '~\{\$(.*?)\}~si',
-                function ($match) use ($level) {
-                    return eval('return $' . $match[1] . ';');
-                },
-                $building);
-
-            $x = 0;
-            eval ('$x = ' . $string_processed . ';');
-
-            $res['building'][$key] = $x;
-        }
-
-        //building requirements
-        $currentTRFormula = [];
-        foreach ($levelTechFormulas as $levelFormula) {
-            if ($levelFormula->level > $level)
-                break;
-            else
-                $currentTRFormula = $levelFormula;
-        }
-
-        foreach ($currentTRFormula as $key => $technology) {
-            if ($key == 'level')
-                continue;
-
-            $string_processed = preg_replace_callback(
-                '~\{\$(.*?)\}~si',
-                function ($match) use ($level) {
-                    return eval('return $' . $match[1] . ';');
-                },
-                $technology);
-
-            $x = 0;
-            eval ('$x = ' . $string_processed . ';');
-
-            $res['technology'][$key] = $x;
-        }
-
-
-        return $res;
-    }
-
-    /**
-     * Parse Requirements helper
-     *
-     * @param $jsonDecoded
-     * @param int $level
-     * @return array
-     */
-    private function parseUpgrades($jsonDecoded, int $level)
-    {
-        $res = [];
-
-        foreach ($jsonDecoded as $typeName => $upgradeType) {
-            foreach ($upgradeType as $item) {
-                if (empty($item->formula))
-                    continue;
-
-                if (!empty($item->constant->multiplier))
-                    $multiplier = $item->constant->multiplier;
-
-                $levelUpgradeFormulas = $item->formula;
-
-                //building requirements
-                $currentUpgradeFormula = [];
-                foreach ($levelUpgradeFormulas as $levelFormula) {
+                //pick most recent formula pack
+                $currentFormula = [];
+                foreach ($category->formula as $levelFormula) {
                     if ($levelFormula->level > $level)
                         break;
                     else
-                        $currentUpgradeFormula = $levelFormula;
+                        $currentFormula = $levelFormula;
                 }
 
-                foreach ($currentUpgradeFormula as $key => $upgrade) {
-                    if ($key == 'level')
-                        continue;
+                //pick most recent constant pack
+                $currentConstants = [];
+                foreach ($category->constant as $levelConstant) {
+                    if ($levelConstant->level > $level)
+                        break;
+                    else {
+                        if ($levelConstant == "level")
+                            continue;
 
-                    echo '<Br>';
+                        $currentConstants[] = $levelConstant;
+
+                    }
+                }
+
+                foreach ($currentConstants[0] as $kkey => $currentConstant) {
+                    if ($kkey == "level")
+                        continue;
+                    $cConstants[$kkey] = $currentConstant;
+                }
+
+                $constants = array_merge($cConstants, $techBuildingBonus);
+
+                foreach ($currentFormula as $fkey => $building) {
+                    if ($fkey == 'level')
+                        continue;
 
                     $string_processed = preg_replace_callback(
                         '~\{\$(.*?)\}~si',
-                        function ($match) use ($level, $multiplier) {
-                            return eval('return $' . $match[1] . ';');
+                        function ($match) use ($constants) {
+                            return eval('return $constants[\'' . $match[1] . '\'];');
                         },
-                        $upgrade);
+                        $building);
 
                     $x = 0;
                     eval ('$x = ' . $string_processed . ';');
-                    $res['upgrade'][$typeName][$key] = $x;
+
+                    $res[$key][$fkey] = $x;
                 }
             }
         }
@@ -310,18 +480,91 @@ class ResourceController extends Controller
     }
 
     /**
-     * level 0 - 99 characteristics table printout
-     * @param int $bid
+     * Parse Requirements helper
+     *
+     * @param array $techBuildingBonus
+     * @param $jsonDecoded
+     * @param int $level
+     * @return array
      */
-    public function testMany(int $bid)
+    private function parseUpgrades($jsonDecoded, int $level, $techBuildingBonus)
     {
-        $res = Building::find($bid);
+        $res = [];
+        $cConstants['level'] = $level;
+
+        foreach ($jsonDecoded as $key => $category) { //building/tech/etc
+            foreach ($category as $cKey => $item) { //building in buildings, tech in technologies etc
+
+                if (!empty($item->formula) && !empty($item->constant)) {
+                    //pick most recent formula pack
+                    $currentFormula = [];
+                    foreach ($item->formula as $levelFormula) {
+                        if ($levelFormula->level > $level)
+                            break;
+                        else
+                            $currentFormula = $levelFormula;
+                    }
+
+                    //pick most recent constant pack
+                    $currentConstants = [];
+                    foreach ($item->constant as $levelConstant) {
+                        if ($levelConstant->level > $level)
+                            break;
+                        else {
+                            if ($levelConstant == "level")
+                                continue;
+
+                            $currentConstants[] = $levelConstant;
+
+                        }
+                    }
+
+                    foreach ($currentConstants[0] as $kkey => $currentConstant) {
+                        if ($kkey == "level")
+                            continue;
+                        $cConstants[$kkey] = $currentConstant;
+                    }
+
+                    $constants = array_merge($cConstants, $techBuildingBonus);
+
+                    foreach ($currentFormula as $fkey => $building) {
+                        if ($fkey == 'level')
+                            continue;
+
+                        $string_processed = preg_replace_callback(
+                            '~\{\$(.*?)\}~si',
+                            function ($match) use ($constants) {
+                                return eval('return $constants[\'' . $match[1] . '\'];');
+                            },
+                            $building);
+
+                        $x = 0;
+                        eval ('$x = ' . $string_processed . ';');
+
+                        $res[$key][$fkey] = $x;
+                    }
+                }
+            }
+        }
+
+        return $res;
+    }
+
+    /**
+     * level 1 - 100 characteristics table printout
+     * @param Request $request
+     * @param int $planetId
+     * @param int $buildingId
+     */
+    public function testMany(Request $request, int $planetId, int $buildingId)
+    {
+        $res = Building::find($buildingId);
 
         echo '<table border="1" width="100%">';
-        for ($level = 0; $level < 100; $level++) {
+        for ($level = 1; $level < 101; $level++) {
             echo '<tr><td width="40px"> level: ' . $level . '</td>';
             echo '<td>';
-            foreach ($this->parseAll(($res), $level) as $key => $item) {
+            foreach ($this->parseAll($request, $res, $level, $planetId) as $key => $item) {
                 echo '<table border="1" style="float: left; width: 22%;">
                     <tr><th>' . $key . '</th><td>';
                 if (!empty($item['metal'])) {
@@ -338,6 +581,9 @@ class ResourceController extends Controller
                 }
                 if (!empty($item['dark_matter'])) {
                     echo 'dm: ' . $item['dark_matter'] . '<br>';
+                }
+                if (!empty($item['time'])) {
+                    echo 'time: ' . $item['time'] . '<br>';
                 }
 
                 if ($key == 'requirements') {
@@ -362,7 +608,7 @@ class ResourceController extends Controller
                 }
                 if ($key == 'upgrades') {
                     echo '<td>';
-                    foreach ($item['upgrade'] as $uKey => $uItem) { //upgrade type
+                    foreach ($item as $uKey => $uItem) { //upgrade type
                         if ($uKey == 'level')
                             continue;
                         echo '<b>' . $uKey . '</b><br>';
@@ -390,170 +636,98 @@ class ResourceController extends Controller
         $res = [
             'cost' => [
                 'constant' => [
-                    'resources' => [
+                    [
+                        'level' => 0,
+
                         'metal' => 5,
                         'crystal' => 10,
                         'gas' => 3,
                         'energy' => 7,
+                        'time' => 10,
                         'dark_matter' => 0,
-
                         'multiplier' => 1.55,
-                    ],
-                    'fields' => [
-                        'base' => 1,
-
-                        'multiplier' => 1,
-                    ],
+                    ]
                 ], //constant
                 'formula' => [
                     [
                         'level' => 0,
-                        'resources' => [
-                            'metal' => '{$metal} * {$multiplier}**{$level}',
-                            'crystal' => '{$crystal} * {$multiplier}**{$level}',
-                            'gas' => '{$gas} * {$multiplier}**{$level}',
-                            'energy' => '{$energy} * {$multiplier}**{$level}',
-                            'dark_matter' => 1,
-                        ],
-                        'fields' => '$fields + $level',
-                        'requires' => [
-                            'building' => [
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                            ],
-                            'technology' => [
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                            ],
-
-                        ],
+                        'metal' => '{$metal} * {$multiplier}**{$level}',
+                        'crystal' => '{$crystal} * {$multiplier}**{$level}',
+                        'gas' => '{$gas} * {$multiplier}**{$level}',
+                        'time' => '({$metal} + {$crystal} + {$gas}) / 10',
+                        'energy' => '{$energy} * {$multiplier}**{$level}',
+                        'dark_matter' => 1,
                     ],
                     [
                         'level' => 20,
-                        'resources' => [
-                            'metal' => '{$metal} * pow({$multiplier},{$level})',
-                            'crystal' => '{$crystal} * ({$multiplier})**{$level}',
-                            'gas' => '{$gas} * ({$multiplier})**{$level}',
-                            'energy' => '{$energy} * ({$multiplier})**{$level}',
-                            'dark_matter' => 1,
-                        ],
-                        'fields' => '$fields + $level',
-                        'requires' => [
-                            'building' => [
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                            ],
-                            'technology' => [
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                                [
-                                    'id' => 20,
-                                    'level' => 20,
-                                ],
-                            ],
-                        ],
-                    ],
-                ], //formula
-            ], //cost
+                        'metal' => '{$metal} * pow({$multiplier},{$level})',
+                        'crystal' => '{$crystal} * ({$multiplier})**{$level}',
+                        'gas' => '{$gas} * ({$multiplier})**{$level}',
+                        'energy' => '{$energy} * ({$multiplier})**{$level}',
+                        'dark_matter' => 1,
+                    ]
+                ]
+            ],
             'production' => [
                 'constant' => [
-                    'metal' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'crystal' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'gas' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'energy' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'dark_matter' => [
-                        'base' => 1,
-                        'multiplier' => 1,
+                    [
+                        'level' => 0,
+                        'metal' => 1,
+                        'crystal' => 2,
+                        'gas' => 1,
+                        'energy' => -1,
+                        'multiplier' => 1.55,
                     ],
                 ],//constant
                 'formula' => [
                     [
                         'level' => 0,
-                        'metal' => '$metal * 1.55**$level',
-                        'crystal' => '$metal * 1.55**$level',
-                        'gas' => '$metal * 1.55**$level',
-                        'energy' => '$metal * 1.55**$level',
-                        'dark_matter' => 1,
+                        'metal' => '{$metal} * {$multiplier}**{$level}',
+                        'crystal' => '{$metal} * {$multiplier}**{$level}',
+                        'gas' => '{$metal} * {$multiplier}**{$level}',
+                        'energy' => '{$metal} * {$multiplier}**{$level}',
                     ],
                     [
                         'level' => 20,
-                        'metal' => '$metal * 1.15**$level',
-                        'crystal' => '$metal * 1.15**$level',
-                        'gas' => '$metal * 1.15**$level',
-                        'energy' => '$metal * 1.15**$level',
-                        'dark_matter' => 1,
+                        'metal' => '{$metal} * {$multiplier}**{$level}',
+                        'crystal' => '{$metal} * {$multiplier}**{$level}',
+                        'gas' => '{$metal} * {$multiplier}**{$level}',
+                        'energy' => '{$metal} * {$multiplier}**{$level}',
                     ],
                 ],//formula
             ], //production
             'storage' => [
                 'constant' => [
-                    'metal' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'crystal' => [
-                        'base' => 1,
-                        'multiplier' => 1,
-                    ],
-                    'gas' => [
-                        'base' => 1,
-                        'multiplier' => 1,
+                    [
+                        'level' => 0,
+                        'metal' => 10,
+                        'crystal' => 12,
+                        'gas' => 10,
+
+                        'multiplier' => 1.15,
                     ],
                 ],//constant
                 'formula' => [
                     [
                         'level' => 0,
-                        'metal' => '$metal * 1.55**$level',
-                        'crystal' => '$metal * 1.55**$level',
-                        'gas' => '$metal * 1.55**$level',
-                        'energy' => '$metal * 1.55**$level',
-                        'dark_matter' => 1,
+                        'metal' => '{$metal} * {$multiplier}**{$level}',
+                        'crystal' => '{$metal} * {$multiplier}**{$level}',
+                        'gas' => '{$metal} * {$multiplier}**{$level}',
+                        'energy' => '{$metal} * {$multiplier}**{$level}',
                     ],
                     [
                         'level' => 20,
-                        'metal' => '$metal * 1.15**$level',
-                        'crystal' => '$metal * 1.15**$level',
-                        'gas' => '$metal * 1.15**$level',
-                        'energy' => '$metal * 1.15**$level',
-                        'dark_matter' => 1,
+                        'metal' => '{$metal} * {$multiplier}**{$level}',
+                        'crystal' => '{$metal} * {$multiplier}**{$level}',
+                        'gas' => '{$metal} * {$multiplier}**{$level}',
+                        'energy' => '{$metal} * {$multiplier}**{$level}',
                     ],
                 ],//formula
             ],//storage
         ];
 
-        return json_encode($res);
+        return response()->json($res, 200);
+
     }
 
     /**
@@ -564,13 +738,19 @@ class ResourceController extends Controller
     {
         $res = [
             'technology' => [
+                'constant' => [
+                    [
+                        'level' => 0,
+                        'multiplier' => 2,
+                    ]
+                ],
                 'formula' => [
                     [
                         'level' => 0,
                     ],
                     [
                         'level' => 1,
-                        'speed' => '{$level} - 1', //tech - level
+                        'speed' => '{$level} - 1',
                         'self' => '{$level} - 1',
                     ],
                     [
@@ -581,7 +761,7 @@ class ResourceController extends Controller
                     ],
                     [
                         'level' => 15,
-                        'speed' => '{$level} - 1',
+                        'speed' => '{$level}/{$multiplier}',
                         'self' => '{$level} - 1',
                         'location' => '10',
                         'defence' => '1',
@@ -589,6 +769,12 @@ class ResourceController extends Controller
                 ],
             ],
             'building' => [
+                'constant' => [
+                    [
+                        'level' => 0,
+                        'multiplier' => 2,
+                    ]
+                ],
                 'formula' => [
                     [
                         'level' => 0,
@@ -605,14 +791,14 @@ class ResourceController extends Controller
                     [
                         'level' => 15,
                         'mine' => '{$level} - 2',
-                        'fusion' => '10',
+                        'fusion' => '10*{$multiplier}',
                         'terraformer' => '1',
                     ],
                 ],
             ]
         ];
 
-        return json_encode($res);
+        return response()->json($res, 200);
     }
 
     /**
@@ -625,7 +811,10 @@ class ResourceController extends Controller
             'planet' => [
                 'building_speed' => [
                     'constant' => [
-                        'multiplier' => '1.1',
+                        [
+                            'level' => 0,
+                            'multiplier' => '1.1',
+                        ],
                     ],
                     'formula' => [
                         [
@@ -640,7 +829,10 @@ class ResourceController extends Controller
                 ],//technology_speed
                 'rocket_capacity' => [
                     'constant' => [
-                        'multiplier' => '10',
+                        [
+                            'level' => 0,
+                            'multiplier' => '10',
+                        ],
                     ],
                     'formula' => [
                         [
@@ -655,7 +847,10 @@ class ResourceController extends Controller
                 ],//rocket_storage
                 'fields_growth' => [
                     'constant' => [
-                        'multiplier' => '2',
+                        [
+                            'level' => 0,
+                            'multiplier' => '2',
+                        ],
                     ],
                     'formula' => [
                         [
@@ -672,7 +867,10 @@ class ResourceController extends Controller
             'technology' => [
                 'research_speed' => [
                     'constant' => [
-                        'multiplier' => '1.01',
+                        [
+                            'level' => 0,
+                            'multiplier' => '1.01',
+                        ],
                     ],
                     'formula' => [
                         [
@@ -690,7 +888,7 @@ class ResourceController extends Controller
             ],
         ];
 
-        return json_encode($res);
+        return response()->json($res, 200);
     }
 
 }
