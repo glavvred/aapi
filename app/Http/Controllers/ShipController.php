@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Fleet;
+use App\FleetShips;
+use App\Planet;
 use App\Ship;
 use App\User;
 use Illuminate\Http\Request;
-use App\Planet;
 
 /**
  * Class PlanetController
@@ -23,19 +25,143 @@ class ShipController extends Controller
         //
     }
 
-    public function showMyFleet(Request $request){
-        $authId = $request->auth->id;
-        $planetList = Planet::where('owner_id', $authId)->get();
+    public function buildFleet(Request $request, int $planetId, int $fleetId, int $quantity)
+    {
+
+    }
+
+    /**
+     * Show all my fleet
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function showMyFleet(Request $request)
+    {
         $res = [];
-        foreach ($planetList as $planet) {
-            $res[] = Planet::find($planet->id)->ships()->where('owner_id', $authId)
-                ->groupBy('current_planet', 'type')
-                ->get();
+        $authId = $request->auth->id;
+        $fleetList = Fleet::where('owner_id', $authId)->get();
+
+        foreach ($fleetList as $fleet) {
+            //fleet props
+            $res[$fleet->coordinate_id][$fleet->id] = [
+                'ownerId' => $fleet->owner_id,
+                'captain' => $fleet->captain, //todo: hired for
+            ];
+
+            foreach ($fleet->ships as $ship) {
+                foreach ($ship->contains as $item) {
+                    //ships in fleet props
+                    $res[$fleet->coordinate_id][$fleet->id]['ships'][] = [
+                        'shipId' => $item->id,
+                        'name' => $item->i18n()->name,
+                        'quantity' => $ship->quantity,
+                    ];
+                }
+            }
         }
+
         return response()->json($res, 200);
     }
 
-    public function showFleetAtPlanet($request, $planetId) {
+    /**
+     * Show my fleet by planetId
+     * @param $request
+     * @param $planetId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function showFleetAtPlanet(Request $request, $planetId)
+    {
+        $res = [];
+
+        $user = User::find($request->auth->id);
+
+        $authId = $request->auth->id;
+        $alliance = User::where('alliance_id', $request->auth->alliance_id)->get();
+        $fleetList = Fleet::where('coordinate_id', $planetId)->get();
+        $belongTo = '';
+
+        foreach ($fleetList as $fleet) {
+            //fleet props
+            if ($fleet->owner_id == $authId)
+                $belongTo = 'self';
+            elseif ($alliance->contains($fleet->owner_id))
+                $belongTo = 'alliance';
+
+            $res[$fleet->coordinate_id][$belongTo][$fleet->owner_id][$fleet->id] = [
+                'captain' => $fleet->captain
+            ]; //todo: hired for
+
+            foreach ($fleet->ships as $ship) {
+                foreach ($ship->contains as $item) {
+                    //ships in fleet props
+                    $res[$fleet->coordinate_id][$belongTo][$fleet->owner_id][$fleet->id]['ships'][] = [
+                        'shipId' => $item->id,
+                        'name' => $item->i18n($user->language)->name,
+                        'quantity' => $ship->quantity,
+                    ];
+                }
+            }
+        }
+
+        return response()->json($res, 200);
+    }
+
+    public function showShipListByPlanet(Request $request, $planetId)
+    {
+        $res = [];
+
+        $authId = $request->auth->id;
+        $user = User::find($authId);
+        //only my fleet counts
+        $fleetList = Fleet::where('coordinate_id', $planetId)
+            ->where('owner_id', $authId)
+            ->get();
+
+        $shipsAtPlanet = [];
+
+        foreach ($fleetList as $fleet) {
+            foreach ($fleet->ships as $ship) {
+                if (!empty($shipsAtPlanet[$ship->ship_id]))
+                    $shipsAtPlanet[$ship->ship_id] += $ship->quantity;
+                else
+                    $shipsAtPlanet[$ship->ship_id] = $ship->quantity;
+            }
+        }
+
+        $shipsAvailable = Ship::where('race', $request->auth->race)->get();
+
+        foreach ($shipsAvailable as $shipAvailable) {
+            $re = [
+                'shipId' => $shipAvailable->id,
+                'name' => $shipAvailable->i18n($user->language)->name,
+                'description' => $shipAvailable->i18n($user->language)->description,
+                'type' => $shipAvailable->type,
+                'race' => $shipAvailable->race,
+                'attack' => $shipAvailable->attack,
+                'defence' => $shipAvailable->defence,
+                'shield' => $shipAvailable->shield,
+                'speed' => $shipAvailable->speed,
+            ];
+
+            if (!empty($shipsAtPlanet[$shipAvailable->id]))
+                $re['quantity'] = $shipsAtPlanet[$shipAvailable->id];
+            else
+                $re['quantity'] = 0;
+
+            $res[] = $re;
+        }
+
+        return response()->json($res, 200);
+    }
+
+    /**
+     * Show enemy fleet by planetId
+     * @param $request
+     * @param $planetId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function showEnemyFleetAtPlanet($request, $planetId)
+    {
         $authId = $request->auth->id;
         $res = Planet::where($planetId)->ships->where('owner_id', $authId)
             ->where('current_planet', $planetId)
@@ -43,7 +169,6 @@ class ShipController extends Controller
             ->get();
         return response()->json($res, 200);
     }
-
 
 
 }

@@ -19,8 +19,6 @@ class Technology extends Model
      */
     protected $fillable = [
         'name', 'type', 'race', 'description',
-        'cost_metal', 'cost_crystal', 'cost_gas',
-        'dark_matter_cost', 'cost_time',
     ];
 
     /**
@@ -37,7 +35,20 @@ class Technology extends Model
      */
     public function owner()
     {
-        return $this->belongsToMany(User::class, 'user_technologies');
+        return $this->belongsToMany(User::class, 'user_technologies')
+            ->withPivot(["level", "planet_id", "startTime", "timeToBuild"])
+            ->withTimestamps();
+    }
+
+    /**
+     * Перевод
+     * @return mixed
+     */
+    public function i18n()
+    {
+        $translated = $this->hasOne(TechnologyLang::class, 'technology_name', 'name')->first();
+
+        return $translated;
     }
 
 }

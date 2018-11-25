@@ -18,6 +18,7 @@ class CreateUsersTable extends Migration
             $table->integer('alliance_id')->unsigned()->nullable();
             $table->string('name');
             $table->smallInteger('race');
+            $table->enum('language', ['russian', 'english']);
             $table->string('email')->unique();
             $table->string('userimage');
             $table->string('password');

@@ -23,6 +23,7 @@ class CreateUserTechnologiesTable extends Migration
                 ->on('technologies')->onDelete('cascade');
 
             $table->integer('level')->unsigned();
+            $table->integer('planet_id')->unsigned();
             $table->timestamp('startTime', 0)->nullable();
             $table->integer('timeToBuild')->nullable();
             $table->timestamps();

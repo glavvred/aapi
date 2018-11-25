@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Building;
 use App\Planet;
+use App\Ship;
 use App\User;
 use Illuminate\Http\Request;
 use Psr\Log\InvalidArgumentException;
@@ -55,7 +56,15 @@ class ResourceController extends Controller
         $req = json_decode($jsonData->requirements);
         $upg = json_decode($jsonData->upgrades);
 
-        if (empty($res) || empty($req) || empty($upg))
+        $props = [];
+        if (!empty($jsonData->properties))
+            $props = json_decode($jsonData->properties);
+
+        if ((empty($res) && !empty($jsonData->resources)) ||
+            (empty($req) && !empty($jsonData->requirements)) ||
+            (empty($upg) && !empty($jsonData->upgrades)) ||
+            (empty($props) && !empty($jsonData->properties))
+        )
             throw new InvalidArgumentException('Json decode error: ' . json_last_error());
 
         if (empty($request->auth->id))
@@ -82,11 +91,21 @@ class ResourceController extends Controller
         //upgrades
         $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus['bonus']);
 
-        return ['cost' => $cost,
+        //ship properties
+        $properties = $this->parseProperties($props, $techBuildingBonus['bonus']);
+
+        $res = ['cost' => $cost,
             'production' => $production,
             'requirements' => $requirements,
             'upgrades' => $upgrades,
         ];
+
+        if (!empty($props))
+            $res['properties'] = $properties;
+
+        return $res;
+
+
     }
 
     /**
@@ -316,6 +335,7 @@ class ResourceController extends Controller
 
         //pick most recent formula pack
         $currentFormula = [];
+
         foreach ($jsonDecoded->cost->formula as $levelFormula) {
             if ($levelFormula->level > $level)
                 break;
@@ -331,7 +351,8 @@ class ResourceController extends Controller
         $constants['level'] = $level;
 
         foreach ($currentFormula as $key => $resource) {
-
+            if ($key == 'level')
+                continue;
             $x = 0;
 
             $string_processed = preg_replace_callback(
@@ -551,6 +572,49 @@ class ResourceController extends Controller
     }
 
     /**
+     * Parse ship properties helper
+     *
+     * @param array $techBuildingBonus
+     * @param $jsonDecoded
+     * @return array
+     */
+    private function parseProperties($jsonDecoded, $techBuildingBonus)
+    {
+        $res = [];
+
+        foreach ($jsonDecoded as $key => $category) { //combat/navigation/etc
+            foreach ($category as $cKey => $item) { //attack in combat, etc
+                if (!empty($item->formula) && !empty($item->constant)) {
+                    //assuming there is only one formula and no level slices
+                    $cConstants = [];
+                    foreach ($item->constant[0] as $kkey => $currentConstant) {
+                        $cConstants[$kkey] = $currentConstant;
+                    }
+
+                    $constants = array_merge($cConstants, $techBuildingBonus);
+
+                    foreach ($item->formula[0] as $fkey => $ship) {
+
+                        $string_processed = preg_replace_callback(
+                            '~\{\$(.*?)\}~si',
+                            function ($match) use ($constants) {
+                                return eval('return $constants[\'' . $match[1] . '\'];');
+                            },
+                            $ship);
+
+                        $x = 0;
+                        eval ('$x = ' . $string_processed . ';');
+
+                        $res[$key][$fkey] = $x;
+                    }
+                }
+            }
+        }
+
+        return $res;
+    }
+
+    /**
      * level 1 - 100 characteristics table printout
      * @param Request $request
      * @param int $planetId
@@ -624,6 +688,95 @@ class ResourceController extends Controller
             echo '</td>';
             echo '</tr>';
         }
+        echo '</table>';
+    }
+
+    /**
+     * ship characteristics table printout
+     * @param Request $request
+     * @param int $planetId
+     * @param int $shipId
+     */
+    public function testShip(Request $request, int $planetId, int $shipId)
+    {
+        $res = Ship::find($shipId);
+
+        $parsed = $this->parseAll($request, $res, 1, $planetId);
+
+        echo '<table border="1" width="100%">';
+        echo '<tr><td>';
+        foreach ($parsed as $key => $item) {
+            echo '<table border="1" style="float: left; width: 22%;">
+                    <tr><th>' . $key . '</th><td>';
+            if (!empty($item['metal'])) {
+                echo 'm: ' . $item['metal'] . '<br>';
+            }
+            if (!empty($item['crystal'])) {
+                echo 'c: ' . $item['crystal'] . '<br>';
+            }
+            if (!empty($item['gas'])) {
+                echo 'g: ' . $item['gas'] . '<br>';
+            }
+            if (!empty($item['energy'])) {
+                echo 'e: ' . $item['energy'] . '<br>';
+            }
+            if (!empty($item['dark_matter'])) {
+                echo 'dm: ' . $item['dark_matter'] . '<br>';
+            }
+            if (!empty($item['time'])) {
+                echo 'time: ' . $item['time'] . '<br>';
+            }
+
+            if ($key == 'requirements') {
+                echo '<td>';
+                if (!empty($item['building'])) {
+                    echo 'building: ';
+                    foreach ($item['building'] as $reqKey => $req) {
+                        if ($reqKey == 'level')
+                            continue;
+                        echo $reqKey . " : " . $req . '<br> ';
+                    }
+                }
+                if (!empty($item['technology'])) {
+                    echo 'technology: ';
+                    foreach ($item['technology'] as $reqKey => $req) {
+                        if ($reqKey == 'level')
+                            continue;
+                        echo $reqKey . " : " . $req . '<br> ';
+                    }
+                }
+                echo '</td>';
+            }
+            if ($key == 'upgrades') {
+                echo '<td>';
+                foreach ($item as $uKey => $uItem) { //upgrade type
+                    if ($uKey == 'level')
+                        continue;
+                    echo '<b>' . $uKey . '</b><br>';
+                    foreach ($uItem as $uuKey => $uuItem) {
+                        echo $uuKey . " : " . $uuItem . '<br> ';
+                    }
+                }
+                echo '</td>';
+            }
+            if ($key == 'properties') {
+                echo '<td>';
+                foreach ($item as $uKey => $uItem) { //upgrade type
+                    echo '<b>' . $uKey . '</b><br>';
+                    foreach ($uItem as $uuKey => $uuItem) {
+                        if ($uuKey == 'level')
+                            continue;
+
+                        echo $uuKey . " : " . $uuItem . '<br> ';
+                    }
+                }
+                echo '</td>';
+            }
+
+            echo '</tr></table>';
+        }
+        echo '</td>';
+        echo '</tr>';
         echo '</table>';
     }
 
@@ -886,6 +1039,70 @@ class ResourceController extends Controller
                 'navigation' => [],
                 'combat' => [],
             ],
+        ];
+
+        return response()->json($res, 200);
+    }
+
+    /**
+     * default json output for ship 'properties' field
+     * @return string
+     */
+    public function defaultJsonProperties()
+    {
+        $res = [
+            'combat' => [
+                'attack' => [
+                    'constant' => [
+                        [
+                            'multiplier' => '1.1',
+                        ],
+                    ],
+                    'formula' => [
+                        [
+                            'attack' => '{$light_fighter_attack} * {$multiplier}',
+                        ],
+                    ],
+                ],//attack
+                'armor' => [
+                    'constant' => [
+                        [
+                            'multiplier' => '10',
+                        ],
+                    ],
+                    'formula' => [
+                        [
+                            'armor' => '{$light_fighter_armor} * {$multiplier}',
+                        ],
+                    ],
+                ],//armor
+                'shield' => [
+                    'constant' => [
+                        [
+                            'multiplier' => '2',
+                        ],
+                    ],
+                    'formula' => [
+                        [
+                            'shield' => '{$light_fighter_shield} * {$multiplier}',
+                        ],
+                    ],
+                ],//shield
+            ],//combat
+            'navigation' => [
+                'speed' => [
+                    'constant' => [
+                        [
+                            'multiplier' => '1',
+                        ],
+                    ],
+                    'formula' => [
+                        [
+                            'speed' => '{$light_fighter_speed} * {$multiplier}',
+                        ],
+                    ],
+                ],//speed
+            ],//combat
         ];
 
         return response()->json($res, 200);

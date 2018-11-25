@@ -38,8 +38,8 @@ class BuildingController extends Controller
         //building info
         $res = [
             'id' => $building->id,
-            'name' => $building->name,
-            'description' => $building->description,
+            'name' => $building->i18n($user->language)->name,
+            'description' => $building->i18n($user->language)->description,
             'type' => $building->type,
             'race' => $building->race,
         ];
@@ -73,7 +73,9 @@ class BuildingController extends Controller
     }
 
     /**
-     * Refresh planet data, ques, resources
+     * Refresh planet data
+     * Counts ques, updates buildings, technologies if it is done
+     * Counts resources from buildings, updates planet resources by time delta * resources per hour
      *
      * @param $request Request
      * @param Planet $planet
@@ -137,22 +139,25 @@ class BuildingController extends Controller
         //технологии
         foreach ($user->technologies as $technology) {
             $techByPivot = $technology->pivot;
+            if (!empty($techByPivot->startTime) && !(empty($techByPivot->timeToBuild))) {
 
-            //update ques
-            $techEndTime = Carbon::parse($techByPivot->startTime)->addSecond($techByPivot->timeToBuild);
+                //update ques
+                $techEndTime = Carbon::parse($techByPivot->startTime)->addSecond($techByPivot->timeToBuild);
 
-            if (Carbon::now()->diffInSeconds($techEndTime, false) <= 0) {
-                $techStatus = 0;
+                if (Carbon::now()->diffInSeconds($techEndTime, false) <= 0) {
+                    $techStatus = 0;
 
-                //что то достроилось
-                $user->technologies()->updateExistingPivot($technology->id, [
-                    'level' => $techByPivot->level + 1,
-                    'startTime' => null,
-                    'timeToBuild' => null,
-                    'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
-            } else {
-                $techQueTimeRemain = Carbon::now()->diffInSeconds($techEndTime);
-                $techStatus = 1;
+                    //что то достроилось
+                    $user->technologies()->updateExistingPivot($technology->id, [
+                        'level' => $techByPivot->level + 1,
+                        'planet_id' => null,
+                        'startTime' => null,
+                        'timeToBuild' => null,
+                        'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
+                } else {
+                    $techQueTimeRemain = Carbon::now()->diffInSeconds($techEndTime);
+                    $techStatus = 1;
+                }
             }
         }
 
@@ -205,8 +210,8 @@ class BuildingController extends Controller
             //building info
             $res[$building->id] = [
                 'id' => $building->id,
-                'name' => $building->name,
-                'description' => $building->description,
+                'name' => $building->i18n($user->language)->name,
+                'description' => $building->i18n($user->language)->description,
                 'type' => $building->type,
                 'race' => $building->race,
             ];
@@ -217,8 +222,8 @@ class BuildingController extends Controller
                 ->first();
 
             if (!empty($bap->pivot)) {
-                $building_level = $bap->pivot->level;}
-            else
+                $building_level = $bap->pivot->level;
+            } else
                 $building_level = 0;
 
             $resources = app('App\Http\Controllers\ResourceController')
@@ -260,9 +265,14 @@ class BuildingController extends Controller
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
         $ref = $this->refreshPlanet($request, $planet);
 
-        //slots check
+        //que check
         if ($ref['buildingQued'] && ($ref['queTimeRemain'] > 0))
-            return response()->json(['status' => 'error', 'message' => 'no slots available', 'time_remain' => $ref['queTimeRemain']], 403);
+            return response()->json(['status' => 'error', 'message' => 'que is not empty', 'time_remain' => $ref['queTimeRemain']], 403);
+
+        $slots = $this->slotsAvailable($planet);
+
+        if (!$slots['canBuild'])
+            return response()->json(['status' => 'error', 'message' => 'no planet slots available', 'time_remain' => $ref['queTimeRemain']], 403);
 
         $building = Building::find($buildingId);
 
@@ -297,6 +307,22 @@ class BuildingController extends Controller
         return response()->json(['status' => 'success',
             'level' => $level + 1,
             'time' => $timeToBuild], 200);
+    }
+
+    /**
+     * Slots checker by given planet
+     * @param Planet $planet
+     * @return array|\Illuminate\Http\JsonResponse
+     */
+    public function slotsAvailable(Planet $planet)
+    {
+
+        $bap = $planet->buildings;
+        $occupied = 0;
+        foreach ($bap as $building) {
+            $occupied += ($building->pivot->level);
+        }
+        return ['available' => $planet->slots, 'occupied' => $occupied, 'canBuild' => ($planet->slots > $occupied)];
     }
 
     /**
@@ -383,7 +409,7 @@ class BuildingController extends Controller
             'message' => 'building removed from que',
             'building' => [
                 'id' => $building->id,
-                'name' => $building->name,
+                'name' => $building->i18n($user->language)->name,
                 'current_level' => $buildingAtPlanet->pivot->level,
             ],
             'buildingQued' => $ref['buildingQued'],
@@ -480,22 +506,6 @@ class BuildingController extends Controller
     public function calcLevelTimeCost($level, $levelOneTimeCost)
     {
         return round($levelOneTimeCost * pow(1.55, $level));
-    }
-
-    /**
-     * Slots checker by given planet
-     * @param Planet $planet
-     * @return array|\Illuminate\Http\JsonResponse
-     */
-    public function slotsAvailable(Planet $planet)
-    {
-
-        $bap = $planet->buildings;
-        $occupied = 0;
-        foreach ($bap as $building) {
-            $occupied += ($building->pivot->level);
-        }
-        return ['available' => $planet->slots, 'occupied' => $occupied];
     }
 
     /**

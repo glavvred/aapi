@@ -19,9 +19,7 @@ class Ship extends Model
      */
     protected $fillable = [
         'name', 'type', 'race', 'description',
-        'cost_metal', 'cost_crystal', 'cost_gas',
-        'energy_ph', 'dark_matter_cost', 'cost_time',
-        'attack', 'defence', 'shield', 'speed',
+        'resource', 'requirements', 'upgrades', 'properties',
     ];
 
     /**
@@ -33,12 +31,28 @@ class Ship extends Model
     ];
 
     /**
-     * Корабли на координатах
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * Корабли в составе флота
+     * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function planet()
+    public function fleetShips()
     {
-        return $this->belongsToMany(Planet::class, 'planet_ships');
+        return $this->belongsToMany('App\FleetShip','fleet_ships')
+            ->withPivot('quantity');
+    }
+
+    /**
+     * Перевод
+     * @param string $language
+     * @return Model|null|object|static
+     */
+    public function i18n(string $language)
+    {
+        $translated = $this
+            ->hasOne(ShipLang::class, 'ship_name', 'name')
+            ->where('language', $language)
+            ->first();
+
+        return $translated;
     }
 
 }

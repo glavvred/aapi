@@ -51,21 +51,11 @@ class Planet extends Model
 
     /**
      * Корабли на планете
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
-     */
-    public function ships()
-    {
-        return $this->belongsToMany(Ship::class, 'planet_ships')
-            ->withPivot('quantity');
-    }
-
-    /**
-     * Флоты на планете
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     * @return \Illuminate\Database\Eloquent\Relations\hasMany
      */
     public function fleets()
     {
-        return $this->hasMany(Fleet::class);
+        return $this->hasMany(Fleet::class, 'coordinate_id');
     }
 
     /**

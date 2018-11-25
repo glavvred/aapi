@@ -29,8 +29,11 @@ $router->group(['prefix' => 'api'], function () use ($router) {
     $router->get('test/resources/', 'ResourceController@defaultJsonResources');
     $router->get('test/requirements', 'ResourceController@defaultJsonRequirements');
     $router->get('test/upgrades', 'ResourceController@defaultJsonUpgrades');
+    $router->get('test/properties', 'ResourceController@defaultJsonProperties');
     $router->get('test/{pid}/building/{bid}/level/{level}', 'ResourceController@test');
     $router->get('test/{pid}/building/{bid}', 'ResourceController@testMany');
+    $router->get('test/{pid}/ship/{bid}', 'ResourceController@testShip');
+
 
     //auth
     $router->group(['prefix' => 'auth'], function () use ($router) {
@@ -46,6 +49,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
     //auth + scope
     $router->group(['middleware' => ['jwt.auth', 'astrality.scope']], function () use ($router) {
+
         //users
         $router->get('users', ['uses' => 'UserController@showAllUsers']);
         $router->get('users/{id}', ['uses' => 'UserController@showOneUser']);
@@ -85,8 +89,9 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('planets/{id}/technologies/{tid}', ['uses' => 'TechController@showOneTech']);
         $router->put('planets/{id}/technologies/{tid}/upgrade', ['uses' => 'TechController@upgradeTech']);
 
+        //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
-
+        $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
         $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
         $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showShipProperties']);
         $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'ShipController@build']);

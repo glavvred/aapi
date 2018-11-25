@@ -15,20 +15,13 @@ class CreateShipsTable extends Migration
     {
         Schema::create('ships', function (Blueprint $table) {
             $table->increments('id')->unsigned();
-            $table->string('name');
-            $table->string('description');
+            $table->string('name')->unique();
             $table->tinyInteger('type');
             $table->tinyInteger('race');
-            $table->integer('cost_metal')->nullable();
-            $table->integer('cost_crystal')->nullable();
-            $table->integer('cost_gas')->nullable();
-            $table->integer('cost_time');
-            $table->integer('energy_ph')->nullable();
-            $table->integer('dark_matter_cost')->nullable();
-            $table->integer('attack')->nullable();
-            $table->integer('defence')->nullable();
-            $table->integer('shield')->nullable();
-            $table->integer('speed')->nullable();
+            $table->json('resources');
+            $table->json('requirements');
+            $table->json('upgrades');
+            $table->json('properties');
         });
     }
 

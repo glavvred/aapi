@@ -32,6 +32,21 @@ class Building extends Model
     ];
 
 
+    /**
+     * Перевод
+     * @param string $language
+     * @return Model|null|object|static
+     */
+    public function i18n(string $language)
+    {
+        $translated = $this
+            ->hasOne(BuildingLang::class, 'building_name', 'name')
+            ->where('language', $language)
+            ->first();
+
+        return $translated;
+    }
+
 }
 
 

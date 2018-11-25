@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n;
 use App\Planet;
 use App\Technology;
 use App\User;
@@ -40,39 +41,44 @@ class TechController extends Controller
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
 
+
+        $ref = app('App\Http\Controllers\BuildingController')
+            ->refreshPlanet($request, $planet);
+
         $techAvailableList = Technology::where('race', $user->race)->get();
+        $allTechAtUser = $user->technologies()
+            ->wherePivot('owner_id', $user->id)
+            ->get();
 
         $result = [];
 
         foreach ($techAvailableList as $technology) {
-            $res = [
-                'id' => $technology->id,
-                'name' => $technology->name,
-                'description' => $technology->description,
-                'type' => $technology->type,
-                'race' => $technology->race,
-            ];
+            $techAtUser = $allTechAtUser->find($technology->id);
 
-            $techAtUser = $user->technologies()
-                ->wherePivot('owner_id', $user->id)
-                ->wherePivot('technology_id', $technology->id)
-                ->first();
-
-            $level = !empty($techAtUser->pivot->level) ? $techAtUser->pivot->level : 0;
+            $level = !empty($techAtUser) ? $techAtUser->pivot->level : 0;
 
             $resources = app('App\Http\Controllers\ResourceController')
                 ->parseAll($request, $technology, $level, $planetId);
 
-            $res['resources']['current'] = $resources['cost'];
-
-            if (!empty($techAtUser)) {
-                $res['level'] = $techAtUser->pivot->level;
-                $res['startTime'] = $techAtUser->pivot->startTime;
-                $res['timeToBuild'] = $techAtUser->pivot->timeToBuild;
-                $res['created_at'] = Carbon::parse($techAtUser->pivot->created_at)->format('Y-m-d H:i:s');
-                $res['updated_at'] = Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s');
-
-            }
+            $res = [
+                'id' => $technology->id,
+                'name' => $technology->i18n()->name,
+                'description' => $technology->i18n()->description,
+                'type' => $technology->type,
+                'race' => $technology->race,
+                'level' => $level,
+                'resources' => [
+                    'cost' => $resources['cost'],
+                    'production' => $resources['production'],
+                ],
+                'requirements' => $resources['requirements'],
+                'upgrades' => $resources['upgrades'],
+                'startTime' => !empty($techAtUser) ? $techAtUser->pivot->startTime : null,
+                'timeToBuild' => !empty($techAtUser) ? $techAtUser->pivot->timeToBuild : null,
+                'planet_id' => !empty($techAtUser) ? $techAtUser->pivot->planet_id : null,
+                'created_at' => !empty($techAtUser) ? Carbon::parse($techAtUser->pivot->created_at)->format('Y-m-d H:i:s') : null,
+                'updated_at' => !empty($techAtUser) ? Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s') : null,
+            ];
             $result[] = $res;
         }
 
@@ -107,62 +113,34 @@ class TechController extends Controller
         if ($planet->owner_id != $user->id)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
 
+        //race check skipped - cannot be not your race
+
         $techAtUser = $user->technologies->find($techId);
 
-        $level = !empty($techAtUser->level) ? $techAtUser->level : 0;
+        $level = !empty($techAtUser) ? $techAtUser->pivot->level : 0;
 
         $resources = app('App\Http\Controllers\ResourceController')
-            ->parseAll($tech, $level);
-
-        $res['resources']['current'] = $resources['cost'];
-
-        //race check
-        if ($user->race != $tech->race) {
-            $res[] = [
-                'id' => $tech->id,
-                'name' => $tech->name,
-                'description' => $tech->description,
-                'type' => $tech->type,
-                'race' => $tech->race,
-                'resources' => [
-                    'current' => [
-                        'metal' => $tech->cost_metal,
-                        'crystal' => $tech->cost_crystal,
-                        'gas' => $tech->cost_gas,
-                        'dark_matter' => $tech->dark_matter_cost,
-                        'time' => $tech->cost_time,
-                    ],
-                ],
-                'level' => 0,
-            ];
-            return response()->json(['status' => 'error', 'message' => 'race mismatch', 'info' => $res], 200);
-        }
-
-        $res = [];
+            ->parseAll($request, $tech, $level, $planetId);
 
         if (!empty($techAtUser)) {
-            $currentPrice = app('App\Http\Controllers\BuildingController')
-                ->calcLevelResourceCost($techAtUser->pivot->level,
-                    [
-                        'metal' => $tech->cost_metal,
-                        'crystal' => $tech->cost_crystal,
-                        'gas' => $tech->cost_gas,
-                        'dark_matter' => $tech->dark_matter_cost,
-                        'time' => $tech->cost_time,
-                    ]);
-
             $res[] = [
                 'id' => $tech->id,
                 'name' => $tech->name,
                 'description' => $tech->description,
                 'type' => $tech->type,
                 'race' => $tech->race,
-                'resources' => $currentPrice,
                 'level' => $techAtUser->pivot->level,
+                'resources' => [
+                    'cost' => $resources['cost'],
+                    'production' => $resources['production'],
+                ],
+                'requirements' => $resources['requirements'],
+                'upgrades' => $resources['upgrades'],
                 'startTime' => $techAtUser->pivot->startTime,
                 'timeToBuild' => $techAtUser->pivot->timeToBuild,
-                'created_at' => $techAtUser->pivot->created_at,
-                'updated_at' => $techAtUser->pivot->updated_at,
+                'planet_id' => $techAtUser->pivot->planet_id,
+                'created_at' => Carbon::parse($techAtUser->pivot->created_at)->format('Y-m-d H:i:s'),
+                'updated_at' => Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s'),
             ];
             return response()->json($res, 200);
         } else //level 0 tech
@@ -173,17 +151,12 @@ class TechController extends Controller
                 'type' => $tech->type,
                 'race' => $tech->race,
                 'resources' => [
-                    'metal' => $tech->cost_metal,
-                    'crystal' => $tech->cost_crystal,
-                    'gas' => $tech->cost_gas,
-                    'dark_matter' => $tech->dark_matter_cost,
-                    'time' => $tech->cost_time,
+                    'cost' => $resources['cost'],
+                    'production' => $resources['production'],
                 ],
+                'requirements' => $resources['requirements'],
+                'upgrades' => $resources['upgrades'],
                 'level' => 0,
-                'startTime' => null,
-                'timeToBuild' => null,
-                'created_at' => null,
-                'updated_at' => null,
             ], 200);
     }
 
@@ -196,7 +169,6 @@ class TechController extends Controller
     public function upgradeTech(Request $request, $id, $tid)
     {
         $user = User::find($request->auth->id);
-
         $planet = Planet::find($id);
 
         if ($planet->owner_id != $user->id)
@@ -232,30 +204,25 @@ class TechController extends Controller
         $level = !empty($techAtUserPivot->level) ? $techAtUserPivot->level : 0;
 
         //resources check
-        $resources = [
-            'metal' => $techAtUser->cost_metal,
-            'crystal' => $techAtUser->cost_crystal,
-            'gas' => $techAtUser->cost_gas,
-            'dark_matter' => $techAtUser->cost_dark_matter,
-            'time' => $techAtUser->cost_time,
-        ];
-        $resourcesAtLevel = app('App\Http\Controllers\BuildingController')->calcLevelResourceCost($level + 1, $resources);
+        $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
+            ->parseAll($request, $tech, $level, $planet->id);
 
-        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resourcesAtLevel))
+        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
 
-        app('App\Http\Controllers\BuildingController')->buy($planet, $resourcesAtLevel);
+        app('App\Http\Controllers\BuildingController')->buy($planet, $resourcesAtLevel['cost']);
+
+        $timeToBuild = $resourcesAtLevel['cost']['time'];
 
         $user->technologies()->updateExistingPivot($techAtUser->id, [
             'level' => $level,
             'startTime' => Carbon::now()->format('Y-m-d H:i:s'),
-            'timeToBuild' => $resourcesAtLevel['time'],
+            'timeToBuild' => $timeToBuild,
             'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
-
 
         return response()->json(['status' => 'success',
             'level' => $level,
-            'time' => $resourcesAtLevel['time']], 200);
+            'time' => $timeToBuild], 200);
     }
 
 }

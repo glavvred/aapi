@@ -16,9 +16,10 @@ use Carbon\Carbon;
 //users
 $factory->define(App\User::class, function (Faker\Generator $faker) {
     return [
-        'name' => $faker->name,
+        'name' => $faker->unique()->name,
         'email' => $faker->unique()->email,
         'race' => $faker->randomElement(['1', '2']),
+        'language' => $faker->randomElement(['russian', 'english']),
         'alliance_id' => $faker->randomElement(['1', '2']),
         'password' => app('hash')->make('12345'),
     ];
@@ -139,17 +140,7 @@ $factory->define(App\Comments::class, function (Faker\Generator $faker) {
 //buildings
 $factory->define(App\Building::class, function (Faker\Generator $faker) {
     return [
-        'name' => $faker->colorName,
-        'description' => $faker->text(1000),
-        'cost_metal' => $faker->randomNumber(2),
-        'cost_crystal' => $faker->randomNumber(2),
-        'cost_gas' => $faker->randomNumber(2),
-        'cost_time' => $faker->randomNumber(2),
-        'metal_ph' => $faker->randomNumber(2),
-        'crystal_ph' => $faker->randomNumber(2),
-        'gas_ph' => $faker->randomNumber(2),
-        'energy_ph' => $faker->randomElement(array('-1', '-1', '1')) * $faker->randomNumber(2),
-        'dark_matter_cost' => 0,
+        'name' => $faker->unique()->colorName,
         'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
         'race' => $faker->randomElement(array('1', '2')),
     ];
@@ -157,19 +148,9 @@ $factory->define(App\Building::class, function (Faker\Generator $faker) {
 
 //ships
 $factory->define(App\Ship::class, function (Faker\Generator $faker) {
-    $name = $faker->colorName . ' ' . $faker->randomNumber(2);
+    $name = $faker->colorName . ' ' . $faker->randomNumber(3);
     return [
         'name' => $name,
-        'description' => $name . ' description long text',
-        'cost_metal' => $faker->randomNumber(2),
-        'cost_crystal' => $faker->randomNumber(2),
-        'cost_gas' => $faker->randomNumber(2),
-        'cost_time' => $faker->randomNumber(2),
-//        'metal_ph'              => $faker->randomNumber(2),
-//        'crystal_ph'            => $faker->randomNumber(2),
-//        'gas_ph'                => $faker->randomNumber(2),
-        'energy_ph' => $faker->randomElement(array('-1', '-1', '1')) * $faker->randomNumber(2),
-        'dark_matter_cost' => 0,
         'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
         'race' => $faker->randomElement(array('1', '2')),
     ];
@@ -196,16 +177,10 @@ $factory->define(App\Governor::class, function (Faker\Generator $faker) {
 //technologies
 $factory->define(App\Technology::class, function (Faker\Generator $faker) {
     return [
-        'name' => 'technology: '.$faker->countryCode,
-        'description' => ' description long text',
-
+        'name' => 'technology: '.$faker->unique()->countryCode,
         'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
         'race' => $faker->randomElement(array('1', '2')),
-
-        'cost_metal' => $faker->randomNumber(2),
-        'cost_crystal' => $faker->randomNumber(2),
-        'cost_gas' => $faker->randomNumber(2),
-        'cost_time' => $faker->randomNumber(2),
-        'dark_matter_cost' => 0,
     ];
 });
+
+

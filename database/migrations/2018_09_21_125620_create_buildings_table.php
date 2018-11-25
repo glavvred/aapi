@@ -15,20 +15,12 @@ class CreateBuildingsTable extends Migration
     {
         Schema::create('buildings', function (Blueprint $table) {
             $table->increments('id')->unsigned();
-            $table->string('name');
-            $table->text('description');
+            $table->string('name')->unique();
             $table->tinyInteger('type');
             $table->tinyInteger('race');
-            $table->integer('cost_metal');
-            $table->integer('cost_crystal');
-            $table->integer('cost_gas');
-            $table->integer('cost_time');
-            $table->integer('dark_matter_cost');
-            $table->integer('metal_ph');
-            $table->integer('crystal_ph');
-            $table->integer('gas_ph');
-            $table->integer('energy_ph');
             $table->json('resources');
+            $table->json('requirements');
+            $table->json('upgrades');
         });
     }
 

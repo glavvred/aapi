@@ -39,11 +39,12 @@ class Fleet extends Model
 
     /**
      * Текущая координата
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function coordinate()
     {
-        return $this->belongsTo(Planet::class);
+        return $this->belongsToMany(Planet::class)
+            ->withPivot('quantity');
     }
 
     /**
@@ -63,6 +64,16 @@ class Fleet extends Model
     {
         return $this->belongsTo(Captain::class);
     }
+
+    /**
+     * Корабли в флоте
+     * @return \Illuminate\Database\Eloquent\Relations\hasMany
+     */
+    public function ships()
+    {
+        return $this->hasMany(FleetShip::class, 'fleet_id');
+    }
+
 
 }
 

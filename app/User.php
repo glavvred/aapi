@@ -19,7 +19,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password','userimage', 'race', 'alliance_id'
+        'name', 'email', 'password','userimage', 'race', 'alliance_id', 'language'
     ];
 
     /**
@@ -49,6 +49,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
             ->withPivot(['level',
                 'startTime',
                 'timeToBuild',
+                'planet_id',
                 ])
         ->withTimestamps();
 
@@ -70,6 +71,15 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     {
         return $this->hasOne('App\Alliance');
     }
+
+    /**
+     * Пользователь может говорить только на одном языке.
+     */
+    public function language()
+    {
+        return $this->language;
+    }
+
 
 
 }
