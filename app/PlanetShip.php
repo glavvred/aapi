@@ -4,21 +4,22 @@ namespace App;
 
 use Illuminate\Database\Eloquent\Model;
 
-class BuildingLang extends Model
+class PlanetShip extends Model
 {
 
-    /**
-     * @var bool
-     */
+    public $table = 'planet_ship';
+
     public $timestamps = false;
-    protected $table = 'buildings_lang';
+
     /**
      * The attributes that are mass assignable.
      *
      * @var array
      */
     protected $fillable = [
-        'name', 'description',
+        'planet_id', 'ship_id', 'quantityQued',  'quantity',
+        'startTime', 'timeToBuildOne', 'passedFromLastOne',
+        'created_at', 'updated_at'
     ];
 
     /**

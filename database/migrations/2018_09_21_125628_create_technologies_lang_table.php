@@ -18,9 +18,9 @@ class CreateTechnologiesLangTable extends Migration
             $table->string('technology_name');
             $table->foreign('technology_name')->references('name')
                 ->on('technologies')->onDelete('cascade');
-            $table->tinyInteger('race')->unsigned();
+
             $table->enum('language', ['russian', 'english']);
-            $table->unique(['technology_name', 'race', 'language']);
+            $table->unique(['technology_name', 'language']);
             $table->string('name');
             $table->string('description');
         });

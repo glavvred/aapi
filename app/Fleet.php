@@ -43,7 +43,7 @@ class Fleet extends Model
      */
     public function coordinate()
     {
-        return $this->belongsToMany(Planet::class)
+        return $this->belongsToMany(Planet::class, 'fleets', 'id', 'coordinate_id')
             ->withPivot('quantity');
     }
 

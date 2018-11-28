@@ -18,9 +18,9 @@ class CreateBuildingsLangTable extends Migration
             $table->string('building_name');
             $table->foreign('building_name')->references('name')
                 ->on('buildings')->onDelete('cascade');
-            $table->tinyInteger('race')->unsigned();
+
             $table->enum('language', ['russian', 'english']);
-            $table->unique(['building_name', 'race', 'language']);
+            $table->unique(['building_name', 'language']);
             $table->string('name');
             $table->string('description');
         });

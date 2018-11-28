@@ -92,6 +92,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
         $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
+        $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);
         $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
         $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showShipProperties']);
         $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'ShipController@build']);

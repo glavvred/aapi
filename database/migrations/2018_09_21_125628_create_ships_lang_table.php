@@ -18,9 +18,9 @@ class CreateShipsLangTable extends Migration
             $table->string('ship_name');
             $table->foreign('ship_name')->references('name')
                 ->on('ships')->onDelete('cascade');
-            $table->tinyInteger('race')->unsigned();
+
             $table->enum('language', ['russian', 'english']);
-            $table->unique(['ship_name', 'race', 'language']);
+            $table->unique(['ship_name', 'language']);
             $table->string('name');
             $table->string('description');
         });

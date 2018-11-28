@@ -87,9 +87,14 @@ class BuildingController extends Controller
         $user = User::find($owner);
 
         $timeRemain = 0;
+        $buildingStartTime = 0;
         $buildingsQued = 0;
+
         $techQueTimeRemain = 0;
         $techStatus = 0;
+
+        $shipStartTime = $shipTimeRemain = $shipQuantityRemain = $shipTimePassedFromLast = $shipQuantityQued = 0;
+        $shipTime = [];
 
         $overallMetalPH = 0;
         $overallCrystalPH = 0;
@@ -128,8 +133,8 @@ class BuildingController extends Controller
                         'timeToBuild' => null,
                         'destroying' => 0,
                         'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
-
                 } else {
+                    $buildingStartTime = $buildingByPivot->startTime;
                     $timeRemain = Carbon::now()->diffInSeconds($endTime);
                     $buildingsQued++;
                 }
@@ -161,6 +166,102 @@ class BuildingController extends Controller
             }
         }
 
+        //корабли
+        $ships = $planet->ships()->where('quantityQued', '>', 0)->get();
+        foreach ($ships as $ship) {
+            $shipByPivot = $ship->pivot;
+            if (!empty($shipByPivot->startTime) && !(empty($shipByPivot->timeToBuildOne))) {
+
+                $diff = Carbon::parse($shipByPivot->updated_at)
+                    ->subSeconds($shipByPivot->passedFromLastOne)
+                    ->diffInSeconds(Carbon::now(), true);
+
+                //количество целых за текущий отрезок
+                $quantityBuilt = floor($diff / $shipByPivot->timeToBuildOne);
+                //остаток от деления
+                $timePassed = $diff % $shipByPivot->timeToBuildOne;
+
+                $fleet = $planet->fleets()->where('owner_id', $request->auth->id)->first();
+                //нет флота игрока на планете
+                if (is_null($fleet)) {
+                    DB::table('fleets')->insert([
+                        'owner_id' => $request->auth->id,
+                        'coordinate_id' => $planet->id,
+                        'created_at' => Carbon::now()->format('Y-m-d H:i:s'),
+                    ]);
+                    $fleet = $planet->fleets()->where('owner_id', $request->auth->id)->first();
+                }
+
+                //     planet     fleetsC    fleet  fleetShips
+                $fs = $fleet->ships->filter(function ($item) use ($ship) {
+                    return $item->ship_id == $ship->id;
+                })->first();
+
+                //нет кораблей в флоте на планете
+                if (is_null($fs)) {
+                    DB::table('fleet_ships')->insert([
+                        'fleet_id' => $fleet->id,
+                        'ship_id' => $ship->id,
+                        'quantity' => 0,
+                    ]);
+                    $fs = $fleet->ships->filter(function ($item) use ($ship) {
+                        return $item->ship_id == $ship->id;
+                    })->first();
+                }
+
+                if ($shipByPivot->quantity > $quantityBuilt) {
+                    //что то достроилось, но еще остались корабли в очереди
+
+                    //добавим к первому флоту на этой планете количество построенного
+                    $fs->increment('quantity', $quantityBuilt);
+
+                    $planet->ships()->updateExistingPivot($ship->id, [
+                        'quantity' => $shipByPivot->quantity - $quantityBuilt,
+                        'passedFromLastOne' => $timePassed,
+                        'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
+
+                    $shipStartTime = $shipByPivot->startTime;
+                    $shipQuantityQued = $shipByPivot->quantityQued;
+                    $shipTimePassedFromLast = $timePassed;
+
+                    $shipTimeRemain = Carbon::parse($shipByPivot->startTime)
+                        ->addSeconds($shipQuantityQued * $shipByPivot->timeToBuildOne)
+                        ->diffInSeconds(Carbon::now(), false);
+                    $shipQuantityRemain = $shipByPivot->quantity - $quantityBuilt;
+
+                    $shipTime[] = [
+                        'shipStartTime' => $shipStartTime,
+                        'shipOneTimeToBuild' => $shipByPivot->timeToBuildOne,
+                        'shipTimeRemain' => $shipTimeRemain,
+                        'shipTimePassedFromLast' => $shipTimePassedFromLast,
+                        'shipQuantityQued' => $shipQuantityQued,
+                        'shipQuantityRemain' => $shipQuantityRemain,
+                        ];
+
+
+                } else {
+                    //все достроилось
+
+                    $shipTime[] = [
+                        'shipStartTime' => null,
+                        'shipTimeRemain' => null,
+                        'shipOneTimeToBuild' => null,
+                        'shipTimePassedFromLast' => null,
+                        'shipQuantityQued' => null,
+                        'shipQuantityRemain' => null,
+                    ];
+
+                    $planet->ships()->updateExistingPivot($ship->id, [
+                        'startTime' => null,
+                        'quantity' => null,
+                        'quantityQued' => null,
+                        'timeToBuildOne' => null,
+                        'passedFromLastOne' => null,
+                        'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
+                }
+            }
+        }
+
         //update resources
         $diff = Carbon::now()->diffInSeconds(Carbon::parse($planet->updated_at));
         $planet->increment('metal', round($overallMetalPH * ($diff / 60)));
@@ -179,12 +280,15 @@ class BuildingController extends Controller
             'energyAvailable' => $overallEnergyAvailable,
             'energyUsed' => $overallEnergyUsed,
         ],
+            'buildingStartTime' => $buildingStartTime,
             'buildingQued' => $buildingsQued,
             'queTimeRemain' => $timeRemain,
+
             'techQued' => $techStatus,
             'techQueTimeRemain' => $techQueTimeRemain,
-        ];
 
+            'ships' => $shipTime,
+        ];
     }
 
     /**
@@ -288,7 +392,9 @@ class BuildingController extends Controller
 
         //resources check
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $building, $level, $planetId);
+            ->parseAll($request, $building, $level + 1 , $planetId);
+
+//        var_dump($resourcesAtLevel);
 
         if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);

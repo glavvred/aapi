@@ -36,7 +36,10 @@ class Ship extends Model
      */
     public function fleetShips()
     {
-        return $this->belongsToMany('App\FleetShip','fleet_ships')
+        return $this->belongsToMany('App\FleetShip',
+            'fleet_ships',
+            'ship_id',
+            'fleet_id')
             ->withPivot('quantity');
     }
 
@@ -53,6 +56,15 @@ class Ship extends Model
             ->first();
 
         return $translated;
+    }
+
+    public function getData($request, $planetId)
+    {
+        $level = 1;
+        $data = app('App\Http\Controllers\ResourceController')
+            ->parseAll($request, $this, $level, $planetId);
+
+        return $data;
     }
 
 }

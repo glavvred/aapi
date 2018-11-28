@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Fleet;
 use App\FleetShips;
 use App\Planet;
+use App\PlanetShip;
 use App\Ship;
 use App\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 /**
@@ -25,10 +27,77 @@ class ShipController extends Controller
         //
     }
 
-    public function buildFleet(Request $request, int $planetId, int $fleetId, int $quantity)
+    public function buildShip(Request $request, int $quantity, int $planetId, int $shipId)
     {
+        //нашли планету
+        $planet = Planet::find($planetId);
+        if (!$planet)
+            return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
 
+        //нашли корабль
+        $ship = Ship::find($shipId);
+        if (!$ship)
+            return response()->json(['status' => 'error', 'message' => 'no ship found'], 403);
+
+        $planetShipActual = $ship->getData($request, $planetId);
+
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
+        $ref = $ref['ships'][0];
+
+        //que check
+        if (!empty($ref['shipStartTime']) && !empty(($ref['shipQuantityQued'] > 0)))
+            return response()->json(['status' => 'error',
+                'message' => 'que is not empty',
+                'shipQuantityQued' => $ref['shipQuantityQued'],
+                'shipQuantityRemain' => $ref['shipQuantityRemain'],
+                'oneShipBuildTime' => $ref['shipOneTimeToBuild'],
+                'shipTimePassedFromLast' => $ref['shipTimePassedFromLast'],
+                'fullQueTimeRemain' => $ref['shipOneTimeToBuild'] * $ref['shipQuantityRemain'] - $ref['shipTimePassedFromLast'],
+            ], 403);
+
+        $planetShip = PlanetShip::where('planet_id', $planetId)
+            ->where('ship_id', $shipId)
+            ->first();
+
+        if (empty($planetShip->id)) {
+            $newShip = new PlanetShip;
+            $newShip->ship_id = $shipId;
+            $newShip->planet_id = $planetId;
+            $newShip->save();
+
+            $planetShip = PlanetShip::where('planet_id', $planetId)
+                ->where('ship_id', $shipId)
+                ->first();
+        }
+
+        $resources = [
+            'metal' => $planetShipActual['cost']['metal'] * $quantity,
+            'crystal' => $planetShipActual['cost']['crystal'] * $quantity,
+            'gas' => $planetShipActual['cost']['gas'] * $quantity,
+        ];
+
+        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources))
+            return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
+
+        app('App\Http\Controllers\BuildingController')->buy($planet, $resources);
+
+        $timeToBuild = $planetShipActual['cost']['time'] * $quantity;
+
+        $planetShip->quantityQued = $quantity;
+        $planetShip->quantity = $quantity;
+        $planetShip->startTime = Carbon::now()->format('Y-m-d H:i:s');
+        $planetShip->created_at = Carbon::now()->format('Y-m-d H:i:s');
+        $planetShip->updated_at = Carbon::now()->format('Y-m-d H:i:s');
+        $planetShip->timeToBuildOne = $timeToBuild;
+        $planetShip->save();
+
+        return response()->json(['status' => 'success',
+            'startTime' => Carbon::now()->format('Y-m-d H:i:s'),
+            'quantity' => $quantity,
+            'fullShipTimeRemain' => $timeToBuild,
+        ], 200);
     }
+
 
     /**
      * Show all my fleet

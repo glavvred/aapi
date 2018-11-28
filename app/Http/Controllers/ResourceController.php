@@ -76,6 +76,7 @@ class ResourceController extends Controller
 
         //assuming NO variables except level in technology bonus
         $technologyBonus = $this->getAllCurrentTechnologiesBonus($user->id);
+
         //using calculated tech bonuses in building bonuses
         $techBuildingBonus = $this->getAllCurrentBuildingsBonus($technologyBonus, $planetId);
 
@@ -104,8 +105,6 @@ class ResourceController extends Controller
             $res['properties'] = $properties;
 
         return $res;
-
-
     }
 
     /**
@@ -625,7 +624,7 @@ class ResourceController extends Controller
         $res = Building::find($buildingId);
 
         echo '<table border="1" width="100%">';
-        for ($level = 1; $level < 101; $level++) {
+        for ($level = 0; $level < 101; $level++) {
             echo '<tr><td width="40px"> level: ' . $level . '</td>';
             echo '<td>';
             foreach ($this->parseAll($request, $res, $level, $planetId) as $key => $item) {

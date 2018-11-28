@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Comments;
-use App\User;
-use App\Wreckage;
-use Illuminate\Http\Request;
 use App\Planet;
+use App\User;
+use Illuminate\Http\Request;
 
 /**
  * Class PlanetController
@@ -28,7 +27,7 @@ class PlanetController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function showSolarSystem(Request $request, $gid, $xc, $yc )
+    public function showSolarSystem(Request $request, $gid, $xc, $yc)
     {
         $planetList = Planet::where('coordinateX', $xc)->where('coordinateY', $yc)->get();
         foreach ($planetList as $planet) {
@@ -44,7 +43,61 @@ class PlanetController extends Controller
      */
     public function showMyPlanets(Request $request)
     {
-        return response()->json(Planet::where('owner_id', $request->auth->id)->get());
+        $planets = Planet::with('buildings')
+            ->where('owner_id', $request->auth->id)
+            ->get();
+        $res = [];
+        foreach ($planets as $planet) {
+            $refreshed = app(BuildingController::class)->refreshPlanet($request, $planet);
+
+            $plan = [
+                "id" => $planet['id'],
+                "owner_id" => $planet['owner_id'],
+                "name" => $planet['name'],
+                "slots" => $planet['slots'],
+                "temperature" => $planet['temperature'],
+                "diameter" => $planet['diameter'],
+                "density" => $planet['density'],
+                "galaxy" => $planet['galaxy'],
+                "coordinateX" => $planet['coordinateX'],
+                "coordinateY" => $planet['coordinateY'],
+                "orbit" => $planet['orbit'],
+                "type" => $planet['type'],
+                "created_at" =>  $planet['created_at'],
+                "updated_at" =>  $planet['updated_at'],
+                "resources" => $refreshed['resources'],
+                "ques" => [
+                    "buildings" => [
+                        "buildingStartTime"=> $refreshed['buildingStartTime'],
+                        "buildingQued"=> $refreshed['buildingQued'],
+                        "queTimeRemain"=> $refreshed['queTimeRemain'],
+                    ],
+                    "technologies" => [
+                        "techQued"=> $refreshed['techQued'],
+                        "techQueTimeRemain"=> $refreshed['techQueTimeRemain'],
+                    ],
+                ],
+            ];
+
+            foreach ($refreshed['ships'] as $ship) {
+                $plan['ques']['ships'][] = $ship;
+            }
+
+            foreach ($planet['buildings'] as $building) {
+                $plan['buildings'][] = [
+                    'id' => $building['id'],
+                    'name' => $building['name'],
+                    'type' => $building['type'],
+                    'level' => $building['pivot']['level'],
+                    'startTime' => $building['pivot']['startTime'],
+                    'timeToBuild' => $building['pivot']['timeToBuild'],
+                    'destroying' => $building['pivot']['destroying'],
+                ];
+            }
+            $res[] = $plan;
+
+        }
+        return response()->json($res);
     }
 
     /**
@@ -55,6 +108,8 @@ class PlanetController extends Controller
     public function showOnePlanet(Request $request, $planetId)
     {
         $planet = Planet::where('id', $planetId)->first();
+        $planet->makeHidden(['buildings']);
+
 
         if (!empty($planet->owner_id)) {
             //моя планета
@@ -62,8 +117,7 @@ class PlanetController extends Controller
                 $ref = app(BuildingController::class)->refreshPlanet($request, Planet::where('id', $planetId)->first());
                 $userData = User::find($request->auth->id)->first(['id', 'name', 'userimage']);
                 $ref['slots'] = app(BuildingController::class)->slotsAvailable($planet);
-            }
-            //не моя планета
+            } //не моя планета
             else {
                 $ref = [];
                 $planet->makeHidden(['metal', 'crystal', 'gas', 'created_at', 'updated_at']);
@@ -78,7 +132,7 @@ class PlanetController extends Controller
 
         //my comments not shared
         $comments['own'] = Comments::where(
-                    'coordinateX', $planet->coordinateX)
+            'coordinateX', $planet->coordinateX)
             ->where('coordinateY', $planet->coordinateY)
             ->where('orbit', $planet->orbit)
             ->where('share_with_alliance', 0)
@@ -87,7 +141,7 @@ class PlanetController extends Controller
 
         //my guild comments - shared
         $comments['alliance'] = Comments::where(
-                    'coordinateX', $planet->coordinateX)
+            'coordinateX', $planet->coordinateX)
             ->where('coordinateY', $planet->coordinateY)
             ->where('orbit', $planet->orbit)
             ->where('share_with_alliance', 1)
@@ -116,9 +170,9 @@ class PlanetController extends Controller
             'type' => 'required'
         ]);
 
-        if(Auth::user()->planets()->Create($request->all())){
+        if (Auth::user()->planets()->Create($request->all())) {
             return response()->json(['status' => 'success']);
-        }else{
+        } else {
             return response()->json(['status' => 'fail']);
         }
 
@@ -138,7 +192,7 @@ class PlanetController extends Controller
             'type' => 'filled'
         ]);
         $planet = Planet::find($id);
-        if($planet->fill($request->all())->save()){
+        if ($planet->fill($request->all())->save()) {
             return response()->json(['status' => 'success']);
         }
         return response()->json(['status' => 'fail']);
@@ -150,7 +204,7 @@ class PlanetController extends Controller
      */
     public function delete($id)
     {
-        if(Planet::destroy($id)){
+        if (Planet::destroy($id)) {
             return response()->json(['status' => 'success']);
         }
         return response()->json(['status' => 'fail']);
