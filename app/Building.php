@@ -31,9 +31,18 @@ class Building extends Model
     protected $hidden = [
     ];
 
+    /**
+     * @return mixed
+     */
+    public function requires()
+    {
+        return $this->requirements;
+    }
+
 
     /**
      * Перевод
+     * @throws \Exception
      * @param string $language
      * @return Model|null|object|static
      */
@@ -43,6 +52,10 @@ class Building extends Model
             ->hasOne(BuildingLang::class, 'building_name', 'name')
             ->where('language', $language)
             ->first();
+
+        if (empty($translated)) {
+            throw  new \Exception('no translation found for ship_name:'.$this->name. ' and language:'.$language);
+        }
 
         return $translated;
     }

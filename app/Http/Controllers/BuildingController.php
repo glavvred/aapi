@@ -106,6 +106,8 @@ class BuildingController extends Controller
         foreach ($planet->buildings as $building) {
             $buildingByPivot = $building->pivot;
 
+//            var_dump($building->buildings()->first());
+
             //todo: актуальная формула
             $overallMetalPH += round($building->metal_ph * pow(1.15, $buildingByPivot->level));
             $overallCrystalPH += round($building->crystal_ph * pow(1.15, $buildingByPivot->level));
@@ -236,7 +238,7 @@ class BuildingController extends Controller
                         'shipTimePassedFromLast' => $shipTimePassedFromLast,
                         'shipQuantityQued' => $shipQuantityQued,
                         'shipQuantityRemain' => $shipQuantityRemain,
-                        ];
+                    ];
 
 
                 } else {
@@ -312,6 +314,7 @@ class BuildingController extends Controller
 
         foreach ($buildings as $building) {
             //building info
+
             $res[$building->id] = [
                 'id' => $building->id,
                 'name' => $building->i18n($user->language)->name,
@@ -392,7 +395,7 @@ class BuildingController extends Controller
 
         //resources check
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $building, $level + 1 , $planetId);
+            ->parseAll($request, $building, $level + 1, $planetId);
 
 //        var_dump($resourcesAtLevel);
 
@@ -624,4 +627,22 @@ class BuildingController extends Controller
 
     }
 
+    public function checkRequirements(Request $request, int $planetId, int $buildingId)
+    {
+        $level = 1;
+
+        $buildingAtPlanet = Planet::with('buildings')
+            ->where('planet_id', $planetId)
+            ->where('building_id', $buildingId)->first();
+
+        var_dump($buildingAtPlanet);
+
+//        $requires = app('App\Http\Controllers\ResourceController')
+//            ->parseRequirements($building, $buildingAtPlanet->pivot->level);
+//        var_dump($request->auth->id);
+//        var_dump($planetId);
+//
+//        var_dump($building->requires());
+
+    }
 }

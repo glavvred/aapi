@@ -46,14 +46,19 @@ class Ship extends Model
     /**
      * Перевод
      * @param string $language
+     * @throws \Exception
      * @return Model|null|object|static
      */
     public function i18n(string $language)
     {
         $translated = $this
-            ->hasOne(ShipLang::class, 'ship_name', 'name')
+            ->hasMany(ShipLang::class, 'ship_name', 'name')
             ->where('language', $language)
             ->first();
+
+        if (empty($translated)) {
+            throw  new \Exception('no translation found for ship_name:'.$this->name. ' and language:'.$language);
+        }
 
         return $translated;
     }

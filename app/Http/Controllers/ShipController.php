@@ -160,14 +160,16 @@ class ShipController extends Controller
                 'captain' => $fleet->captain
             ]; //todo: hired for
 
-            foreach ($fleet->ships as $ship) {
-                foreach ($ship->contains as $item) {
-                    //ships in fleet props
-                    $res[$fleet->coordinate_id][$belongTo][$fleet->owner_id][$fleet->id]['ships'][] = [
-                        'shipId' => $item->id,
-                        'name' => $item->i18n($user->language)->name,
-                        'quantity' => $ship->quantity,
-                    ];
+            foreach ($fleet->ships as $fleetShip) {
+                foreach ($fleetShip->contains as $item) {
+                    if (!empty($item->id)) {
+                        //ships in fleet props
+                        $res[$fleet->coordinate_id][$belongTo][$fleet->owner_id][$fleet->id]['ships'][] = [
+                            'shipId' => $item->id,
+                            'name' => $item->i18n($user->language)->name,
+                            'quantity' => $fleetShip->quantity,
+                        ];
+                    }
                 }
             }
         }

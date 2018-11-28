@@ -42,12 +42,20 @@ class Technology extends Model
 
     /**
      * Перевод
+     * @param string $language
+     * @throws \Exception
      * @return mixed
      */
-    public function i18n()
+    public function i18n(string $language   )
     {
-        $translated = $this->hasOne(TechnologyLang::class, 'technology_name', 'name')->first();
+        $translated = $this
+            ->hasMany(TechnologyLang::class, 'technology_name', 'name')
+            ->where('language', $language)
+            ->first();
 
+        if (empty($translated)) {
+            throw  new \Exception('no translation found for ship_name:'.$this->name. ' and language:'.$language);
+        }
         return $translated;
     }
 

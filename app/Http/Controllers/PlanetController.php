@@ -86,7 +86,8 @@ class PlanetController extends Controller
             foreach ($planet['buildings'] as $building) {
                 $plan['buildings'][] = [
                     'id' => $building['id'],
-                    'name' => $building['name'],
+                    'name' => $building->i18n($request->auth->language)->name,
+                    'description' => $building->i18n($request->auth->language)->description,
                     'type' => $building['type'],
                     'level' => $building['pivot']['level'],
                     'startTime' => $building['pivot']['startTime'],
