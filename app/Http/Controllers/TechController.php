@@ -62,8 +62,8 @@ class TechController extends Controller
 
             $res = [
                 'id' => $technology->id,
-                'name' => $technology->i18n()->name,
-                'description' => $technology->i18n()->description,
+                'name' => $technology->i18n($request->auth->language)->name,
+                'description' => $technology->i18n($request->auth->language)->description,
                 'type' => $technology->type,
                 'race' => $technology->race,
                 'level' => $level,
@@ -181,14 +181,13 @@ class TechController extends Controller
         if ($user->race != $tech->race) {
             return response()->json(['status' => 'error', 'message' => 'race mismatch'], 403);
         }
-
         //slots check
-        if (!empty($ref['techQued']) && ($ref['techQueTimeRemain'] > 0))
+        if (!empty($ref['techQued']))
             return response()->json([
                 'status' => 'error',
                 'message' => 'no slots available',
                 'time_remain' => $ref['techQueTimeRemain']
-            ], 403);
+            ], 403); //
 
         //если нет у юзера - создали с уровнем 0
         $techAtUser = $user->technologies()->where('technology_id', $tid)->first();
@@ -217,6 +216,7 @@ class TechController extends Controller
 
         $user->technologies()->updateExistingPivot($techAtUser->id, [
             'level' => $level,
+            'planet_id' => $planet->id,
             'startTime' => Carbon::now()->format('Y-m-d H:i:s'),
             'timeToBuild' => $timeToBuild,
             'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);

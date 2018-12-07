@@ -68,13 +68,14 @@ class PlanetController extends Controller
                 "resources" => $refreshed['resources'],
                 "ques" => [
                     "buildings" => [
-                        "buildingStartTime"=> $refreshed['buildingStartTime'],
+                        "startTime"=> $refreshed['buildingStartTime'],
                         "buildingQued"=> $refreshed['buildingQued'],
-                        "queTimeRemain"=> $refreshed['queTimeRemain'],
+                        "timeToBuild"=> $refreshed['buildingTimeToBuild'],
                     ],
                     "technologies" => [
+                        "startTime"=> $refreshed['techStartTime'],
                         "techQued"=> $refreshed['techQued'],
-                        "techQueTimeRemain"=> $refreshed['techQueTimeRemain'],
+                        "timeToBuild"=> $refreshed['technologyTimeToBuild'],
                     ],
                 ],
             ];

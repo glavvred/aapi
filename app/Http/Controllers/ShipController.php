@@ -27,6 +27,94 @@ class ShipController extends Controller
         //
     }
 
+    public function moveFleet(Request $request, int $fleetId, int $planetId, int $destinationId, int $orderType)
+    {
+        $res = [];
+
+        $fleet = Fleet::where('coordinate_id', $planetId)
+            ->where('id', $fleetId)
+            ->first();
+
+        $coordinates = Planet::whereIn('id', [$planetId, $destinationId])->get();
+
+        $origin = $coordinates->find($planetId);
+        $destination = $coordinates->find($destinationId);
+
+        var_dump($origin->coordinateX);
+        var_dump($origin->coordinateY);
+        var_dump($origin->orbit);
+        echo "\r\n";
+        var_dump($destination->coordinateX);
+        var_dump($destination->coordinateY);
+        var_dump($destination->orbit);
+        echo "\r\n";
+
+        //calc distance
+        $distance = round(sqrt($origin->coordinateX * $destination->coordinateX +
+            $origin->coordinateY * $destination->coordinateY));
+        echo 'distance units ';
+        var_dump($distance);
+
+        //calc travel cost
+        echo 'cost in gas ';
+        var_dump($distance*1000);
+
+        //check resources available
+        echo 'gas ';
+        var_dump($origin->gas);
+
+        //calc max distance (capacity)
+        foreach ($fleet->ships as $fleetShip) {
+            foreach ($fleetShip->contains as $ship){
+                var_dump($ship->id);
+                $shipProperties = app('App\Http\Controllers\ResourceController')
+                    ->parseAll($request, $ship, 1, $planetId);
+                var_dump($shipProperties['properties']);
+
+            }
+        }
+
+        //buy resources
+        //lets go already!
+
+
+        return response()->json($res, 200);
+    }
+
+   public function showOneFleet(Request $request, int $planetId, int $fleetId)
+    {
+        $res = [];
+
+        $fleet = Fleet::where('coordinate_id', $planetId)
+            ->where('id', $fleetId)
+            ->first();
+
+        foreach ($fleet->ships as $fleetShip) {
+            foreach ($fleetShip->contains as $ship) {
+                $shipProperties = app('App\Http\Controllers\ResourceController')
+                    ->parseAll($request, $ship, 1, $planetId);
+
+                $combat = $shipProperties['properties']['combat'];
+
+                $re = [
+                    'shipId' => $ship->id,
+                    'name' => $ship->i18n($request->auth->language)->name,
+                    'description' => $ship->i18n($request->auth->language)->description,
+                    'type' => $ship->type,
+                    'race' => $ship->race,
+                    'attack' => $combat['attack'],
+                    'shield' => $combat['shield'],
+                    'armor' => $combat['armor'],
+                    'quantity' => $fleetShip->quantity,
+                ];
+
+                $res[] = $re;
+            }
+        }
+
+        return response()->json($res, 200);
+    }
+
     public function buildShip(Request $request, int $quantity, int $planetId, int $shipId)
     {
         //нашли планету
@@ -39,10 +127,12 @@ class ShipController extends Controller
         if (!$ship)
             return response()->json(['status' => 'error', 'message' => 'no ship found'], 403);
 
-        $planetShipActual = $ship->getData($request, $planetId);
-
+        //check que
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
-        $ref = $ref['ships'][0];
+        if (!empty($ref['ships']))
+            $ref = $ref['ships'][0];
+
+        $shipDetails = app('App\Http\Controllers\ResourceController')->parseAll($request, $ship, 1, $planetId);
 
         //que check
         if (!empty($ref['shipStartTime']) && !empty(($ref['shipQuantityQued'] > 0)))
@@ -59,6 +149,7 @@ class ShipController extends Controller
             ->where('ship_id', $shipId)
             ->first();
 
+        //no ship of given type at planetId
         if (empty($planetShip->id)) {
             $newShip = new PlanetShip;
             $newShip->ship_id = $shipId;
@@ -71,9 +162,9 @@ class ShipController extends Controller
         }
 
         $resources = [
-            'metal' => $planetShipActual['cost']['metal'] * $quantity,
-            'crystal' => $planetShipActual['cost']['crystal'] * $quantity,
-            'gas' => $planetShipActual['cost']['gas'] * $quantity,
+            'metal' => $shipDetails['cost']['metal'] * $quantity,
+            'crystal' => $shipDetails['cost']['crystal'] * $quantity,
+            'gas' => $shipDetails['cost']['gas'] * $quantity,
         ];
 
         if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources))
@@ -81,7 +172,7 @@ class ShipController extends Controller
 
         app('App\Http\Controllers\BuildingController')->buy($planet, $resources);
 
-        $timeToBuild = $planetShipActual['cost']['time'] * $quantity;
+        $timeToBuild = $shipDetails['cost']['time'] * $quantity;
 
         $planetShip->quantityQued = $quantity;
         $planetShip->quantity = $quantity;

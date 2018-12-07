@@ -80,20 +80,25 @@ class ResourceController extends Controller
         //using calculated tech bonuses in building bonuses
         $techBuildingBonus = $this->getAllCurrentBuildingsBonus($technologyBonus, $planetId);
 
+        if (!isset($techBuildingBonus['command_center']))
+            $techBuildingBonus['command_center'] = 0;
+        if (!isset($techBuildingBonus['research_center']))
+            $techBuildingBonus['research_center'] = 0;
+
         //cost
-        $cost = $this->parseCost($res, $level, $techBuildingBonus['bonus']);
+        $cost = $this->parseCost($res, $level, $techBuildingBonus);
 
         //production
-        $production = $this->parseProduction($res, $level, $techBuildingBonus['bonus']);
+        $production = $this->parseProduction($res, $level, $techBuildingBonus);
 
         //requirements
-        $requirements = $this->parseRequirements($req, $level, $techBuildingBonus['levels']);
+        $requirements = $this->parseRequirements($req, $level, $techBuildingBonus);
 
         //upgrades
-        $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus['bonus']);
+        $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus);
 
         //ship properties
-        $properties = $this->parseProperties($props, $techBuildingBonus['bonus']);
+        $properties = $this->parseProperties($props, $techBuildingBonus);
 
         $res = ['cost' => $cost,
             'production' => $production,
@@ -122,9 +127,11 @@ class ResourceController extends Controller
             ->wherePivot('owner_id', $userId)
             ->get(['upgrades', 'level', 'name']);
 
-        $formulas = $constants = $result = $actualBonusByTech = $levels = [];
+        $formulas = $constants = $result = $actualBonusByTech = $levels = $techLevel = [];
 
         foreach ($technologyLevels as $techId => $technologyLevel) {
+
+            $techLevel[$technologyLevel->name] = $technologyLevel->level;
             $level = $technologyLevel->level;
 
             //get all upgrades - pick most recent - pack as an array
@@ -201,7 +208,7 @@ class ResourceController extends Controller
             }
         }
 
-        return ['bonus' => $result, 'levels' => $levels];
+        return array_merge($result, $techLevel, $levels);
     }
 
     /**
@@ -214,14 +221,17 @@ class ResourceController extends Controller
     public function getAllCurrentBuildingsBonus(array $bonuses, int $planetId)
     {
         $planet = Planet::find($planetId);
+        $planetData['temperature'] = $planet->temperature;
+        $planetData['density'] = $planet->density;
 
         $buildingLevels = $planet->buildings()
             ->wherePivot('planet_id', $planetId)
             ->get(['upgrades', 'level', 'name']);
 
-        $formulas = $constants = $result = $levels = $sums = [];
+        $formulas = $constants = $result = $levels = $sums = $buildLevels = [];
 
         foreach ($buildingLevels as $buildingId => $buildingLevel) {
+            $buildLevels[$buildingLevel->name] = $buildingLevel->level;
             $level = $buildingLevel->level;
 
             //get all upgrades - pick most recent - pack as an array
@@ -277,7 +287,7 @@ class ResourceController extends Controller
                 $x = 0;
 
                 $const = $constants[$buildingId][$key]['constants'];
-                $const = array_merge($const, $bonuses['bonus']);
+                $const = array_merge($const, $bonuses);
 
                 $level = $const['level'];
 
@@ -304,26 +314,37 @@ class ResourceController extends Controller
             }
         }
 
-        $bonus = $bonuses['bonus'];
+        $bonus = $bonuses;
         foreach (array_keys($result + $bonus) as $key) {
             $sums[$key] = (isset($result[$key]) ? $result[$key] : 0) + (isset($bonus[$key]) ? $bonus[$key] : 0);
         }
 
-        return ['bonus' => $sums, 'levels' => array_merge($levels, $bonuses['levels'])];
+        return array_merge($sums, $levels, $bonuses, $buildLevels, $planetData);
     }
 
     /**
      * Parse cost helper
      *
      * @param $jsonDecoded
-     * @param array $bonuses calculated bonuses from technologies and buildings with levels
+     * @param array $constants calculated bonuses from technologies and buildings with levels
      * @param int $level
      * @return array
      */
-    private function parseCost($jsonDecoded, int $level, $bonuses)
+    private function parseCost($jsonDecoded, int $level, $constants)
     {
         //pick most recent constant pack
-        $currentConstants = $costResources = [];
+        $currentConstants = $currentFormula = [];
+        $costResources = [
+            'metal' => 0,
+            'crystal' => 0,
+            'gas' => 0,
+            'energy' => 0,
+            'time' => 0,
+            'dark_matter' => 0,
+            'laboratory' => 0,
+        ];
+
+        $constants = array_merge($constants, $costResources);
 
         foreach ($jsonDecoded->cost->constant as $levelConstant) {
             if ($levelConstant->level > $level)
@@ -333,7 +354,6 @@ class ResourceController extends Controller
         }
 
         //pick most recent formula pack
-        $currentFormula = [];
 
         foreach ($jsonDecoded->cost->formula as $levelFormula) {
             if ($levelFormula->level > $level)
@@ -342,12 +362,10 @@ class ResourceController extends Controller
                 $currentFormula = $levelFormula;
         }
 
-        $constants = $bonuses;
         //each value in constants goes to corresponding variable with respective name
         foreach ($currentConstants as $key => $value) {
             $constants[$key] = $value;
         }
-        $constants['level'] = $level;
 
         foreach ($currentFormula as $key => $resource) {
             if ($key == 'level')
@@ -373,59 +391,62 @@ class ResourceController extends Controller
     /**
      * Parse production helper
      *
-     * @param array $bonuses
+     * @param array $constants
      * @param $jsonDecoded
      * @param int $level
      * @return array
      */
-    private function parseProduction($jsonDecoded, int $level, $bonuses)
+    private function parseProduction($jsonDecoded, int $level, array $constants)
     {
-        $productionResources = [];
+        $productionResources = [
+            'metal' => 0,
+            'crystal' => 0,
+            'gas' => 0,
+            'energy' => 0,
+            'dark_matter' => 0,
+        ];
 
         //pick most recent constant pack
         $currentConstants = [];
-        foreach ($jsonDecoded->production->constant as $levelConstant) {
-            if ($levelConstant->level > $level)
-                break;
-            else
-                $currentConstants = $levelConstant;
+        if (!empty($jsonDecoded->production)) {
+            foreach ($jsonDecoded->production->constant as $levelConstant) {
+                if ($levelConstant->level > $level)
+                    break;
+                else
+                    $currentConstants = $levelConstant;
+            }
+
+            //pick most recent formula pack
+            $currentFormula = [];
+            foreach ($jsonDecoded->production->formula as $levelFormula) {
+                if ($levelFormula->level > $level)
+                    break;
+                else
+                    $currentFormula = $levelFormula;
+            }
+
+            //adding bonuses from other entities as constants
+            //each value in constants goes to corresponding variable with respective name
+            foreach ($currentConstants as $key => $value) {
+                $constants[$key] = $value;
+            }
+
+            foreach ($currentFormula as $key => $resource) {
+                $x = 0;
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($constants) {
+                        return eval('return $constants[\'' . $match[1] . '\'];');
+                    },
+                    $resource);
+
+                eval('$x = round(' . $string_processed . ");");
+                $productionResources[$key] = $x;
+            };
+
+            $productionResources['time'] = round(array_sum($productionResources) / 10);
         }
-
-        //pick most recent formula pack
-        $currentFormula = [];
-        foreach ($jsonDecoded->cost->formula as $levelFormula) {
-            if ($levelFormula->level > $level)
-                break;
-            else
-                $currentFormula = $levelFormula;
-        }
-
-        //adding bonuses from other entites as constants
-        $constants = $bonuses;
-
-        //each value in constants goes to corresponding variable with respective name
-        foreach ($currentConstants as $key => $value) {
-            $constants[$key] = $value;
-        }
-        $constants['level'] = $level;
-
-        foreach ($currentFormula as $key => $resource) {
-
-            $x = 0;
-
-            $string_processed = preg_replace_callback(
-                '~\{\$(.*?)\}~si',
-                function ($match) use ($constants) {
-                    return eval('return $constants[\'' . $match[1] . '\'];');
-                },
-                $resource);
-
-            eval('$x = round(' . $string_processed . ");");
-            $productionResources[$key] = $x;
-        };
-
-        $productionResources['time'] = round(array_sum($productionResources) / 10);
-
         return $productionResources;
     }
 

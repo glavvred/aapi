@@ -16,6 +16,7 @@ class Fleet extends Model
      */
     protected $fillable = [
         'owner_id',
+        'originId',
         'coordinateId',
         'captainId'
     ];

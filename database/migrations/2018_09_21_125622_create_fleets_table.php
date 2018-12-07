@@ -20,6 +20,10 @@ class CreateFleetsTable extends Migration
             $table->foreign('owner_id')->references('id')
                 ->on('users')->onDelete('cascade');
 
+            $table->integer('origin_id')->unsigned();
+            $table->foreign('origin_id')->references('id')
+                ->on('planets')->onDelete('cascade');
+
             $table->integer('coordinate_id')->unsigned();
             $table->foreign('coordinate_id')->references('id')
                 ->on('planets')->onDelete('cascade');
