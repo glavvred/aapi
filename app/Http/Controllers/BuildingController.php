@@ -54,7 +54,7 @@ class BuildingController extends Controller
 
         if (!empty($building->resources) || !empty($building->requirements) || !empty($building->upgrades)) {
             $resources = app('App\Http\Controllers\ResourceController')
-                ->parseAll($building, $buildingAtUser->pivot->level);
+                ->parseAll($building, 'building', $buildingAtUser->pivot->level);
         }
 
         $res['resources'] = [
@@ -345,18 +345,17 @@ class BuildingController extends Controller
                 'race' => $building->race,
             ];
 
-            if (!empty($bap->pivot_level)) {
-                $building_level = $bap->pivot_level;
-            } else
-                $building_level = 0;
+            if (empty($building->pivot_level))
+                $building->pivot_level = 0;
 
             $resources = app('App\Http\Controllers\ResourceController')
-                ->parseAll($request, $building, $building_level, $planetId);
+                ->parseAll($request, 'building', $building, $building->pivot_level, $planetId);
 
             $res[$building->id]['resources'] = [
                 'current' => $resources['cost'],
                 'current_per_hour' => $resources['production'],
             ];
+            $res[$building->id]['requirements'] = $resources['requirements'];
 
             //actual building at planet
             if (!empty($building->pivot_level)) {
@@ -367,6 +366,7 @@ class BuildingController extends Controller
                 $res[$building->id]['updated_at'] = $building->pivot_updated_at;
             }
         }
+
         return response()->json($res);
     }
 
@@ -411,7 +411,7 @@ class BuildingController extends Controller
 
         //resources check
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $building, $level + 1, $planetId);
+            ->parseAll($request, 'building', $building, $level + 1, $planetId);
 
 //        var_dump($resourcesAtLevel);
 
@@ -516,7 +516,7 @@ class BuildingController extends Controller
 
         //resources refund
         $refund = $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($building, $buildingAtPlanet->pivot->level);
+            ->parseAll($building, 'building', $buildingAtPlanet->pivot->level, $buildingAtPlanet, $planetId);
 
         $this->buy($planet, $refund);
 
@@ -642,66 +642,4 @@ class BuildingController extends Controller
 
     }
 
-    public function checkRequirements(Request $request, int $planetId, $instanceToCheck)
-    {
-        $instanceToCheck = Building::find($instanceToCheck);
-
-        $user = User::find($request->auth->id);
-        $planet = Planet::where('id', $planetId)->firstOrFail();
-
-        if ($instanceToCheck instanceof Building) {
-            $buildingAtPlanet = $planet->buildings()
-                ->where('building_id', $instanceToCheck->id)->firstOrFail();
-
-            $level = $buildingAtPlanet->pivot->level;
-
-        } elseif ($instanceToCheck instanceof Technology) {
-            $buildingAtPlanet = $planet->buildings()
-                ->where('building_id', $instanceToCheck->id)->firstOrFail();
-
-            $level = $buildingAtPlanet->pivot->level;
-
-        }
-
-        echo 'строим уровень ' . $level . ' объекта типа: ' . get_class($instanceToCheck) . " на планете " . $planetId . " \r\n";
-
-        $resources = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $instanceToCheck, $level, $planetId);
-
-        //self can be only building
-        if ($instanceToCheck instanceof Building) {
-            $buildings = [];
-            foreach ($resources['requirements']['building'] as $key => $item) {
-                $buildings[strtr($key, ['self' => $buildingAtPlanet->name])] = $item;
-            }
-            $resources['requirements']['building'] = $buildings;
-        }
-
-        $buildings = $planet->buildings()
-            ->whereIn('name', array_keys($resources['requirements']['building']))
-            ->get();
-
-        echo "требования к зданиям: \r\n";
-        foreach ($buildings as $building) {
-            echo $building['name'] . ' (' . $building->pivot->level . ' \ ' . $resources['requirements']['building'][$building['name']] . ")\r\n";
-        }
-
-        //self can be only technology
-        if ($instanceToCheck instanceof Technology) {
-            $technologies = [];
-            foreach ($resources['requirements']['technology'] as $key => $item) {
-                $technologies[strtr($key, ['self' => $buildingAtPlanet->name])] = $item;
-            }
-            $resources['requirements']['technology'] = $technologies;
-        }
-
-        $technologies = $user->technologies()
-            ->whereIn('name', array_keys($resources['requirements']['technology']))
-            ->get();
-
-        echo "\r\n требования к технологиям: \r\n";
-        foreach ($technologies as $technology) {
-            echo $technology['name'] . ' (' . $technology->pivot->level . ' \ ' . $resources['requirements']['technology'][$technology['name']] . ")\r\n";
-        }
-    }
 }

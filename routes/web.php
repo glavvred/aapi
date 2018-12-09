@@ -77,7 +77,6 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('planets', ['uses' => 'PlanetController@showMyPlanets']);
 
         $router->get('planets/{id}', ['uses' => 'PlanetController@showOnePlanet']);
-        $router->get('planets/{id}/buildings/{bid}/test', ['uses' => 'BuildingController@checkRequirements']);
         $router->get('planets/{id}/buildings', ['uses' => 'BuildingController@showAllBuildings']);
         $router->get('planets/{id}/buildings/{bid}', ['uses' => 'BuildingController@showOneBuilding']);
         $router->put('planets/{id}/buildings/{bid}/upgrade', ['uses' => 'BuildingController@upgradeBuilding']);

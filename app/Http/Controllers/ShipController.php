@@ -68,7 +68,7 @@ class ShipController extends Controller
             foreach ($fleetShip->contains as $ship){
                 var_dump($ship->id);
                 $shipProperties = app('App\Http\Controllers\ResourceController')
-                    ->parseAll($request, $ship, 1, $planetId);
+                    ->parseAll($request, 'ship', $ship, 1, $planetId);
                 var_dump($shipProperties['properties']);
 
             }
@@ -92,7 +92,7 @@ class ShipController extends Controller
         foreach ($fleet->ships as $fleetShip) {
             foreach ($fleetShip->contains as $ship) {
                 $shipProperties = app('App\Http\Controllers\ResourceController')
-                    ->parseAll($request, $ship, 1, $planetId);
+                    ->parseAll($request, 'ship', $ship, 1, $planetId);
 
                 $combat = $shipProperties['properties']['combat'];
 
@@ -132,7 +132,7 @@ class ShipController extends Controller
         if (!empty($ref['ships']))
             $ref = $ref['ships'][0];
 
-        $shipDetails = app('App\Http\Controllers\ResourceController')->parseAll($request, $ship, 1, $planetId);
+        $shipDetails = app('App\Http\Controllers\ResourceController')->parseAll($request, 'ship', $ship, 1, $planetId);
 
         //que check
         if (!empty($ref['shipStartTime']) && !empty(($ref['shipQuantityQued'] > 0)))
@@ -293,16 +293,20 @@ class ShipController extends Controller
         $shipsAvailable = Ship::where('race', $request->auth->race)->get();
 
         foreach ($shipsAvailable as $shipAvailable) {
+            $shipProperties = app('App\Http\Controllers\ResourceController')
+                ->parseAll($request, 'ship', $shipAvailable, 1, $planetId);
+
             $re = [
                 'shipId' => $shipAvailable->id,
                 'name' => $shipAvailable->i18n($user->language)->name,
                 'description' => $shipAvailable->i18n($user->language)->description,
                 'type' => $shipAvailable->type,
                 'race' => $shipAvailable->race,
-                'attack' => $shipAvailable->attack,
-                'defence' => $shipAvailable->defence,
-                'shield' => $shipAvailable->shield,
-                'speed' => $shipAvailable->speed,
+                'cost' => $shipProperties['cost'],
+                'production' => $shipProperties['production'],
+                'requirements' => $shipProperties['requirements'],
+                'upgrades' => $shipProperties['upgrades'],
+                'properties' => $shipProperties['properties'],
             ];
 
             if (!empty($shipsAtPlanet[$shipAvailable->id]))

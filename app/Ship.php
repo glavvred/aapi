@@ -67,7 +67,7 @@ class Ship extends Model
     {
         $level = 1;
         $data = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $this, $level, $planetId);
+            ->parseAll($request, 'ship', $this, $level, $planetId);
 
         return $data;
     }

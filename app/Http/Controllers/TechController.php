@@ -58,7 +58,7 @@ class TechController extends Controller
             $level = !empty($techAtUser) ? $techAtUser->pivot->level : 0;
 
             $resources = app('App\Http\Controllers\ResourceController')
-                ->parseAll($request, $technology, $level + 1, $planetId);
+                ->parseAll($request, 'technology', $technology, $level + 1, $planetId);
 
             $res = [
                 'id' => $technology->id,
@@ -120,7 +120,7 @@ class TechController extends Controller
         $level = !empty($techAtUser) ? $techAtUser->pivot->level : 0;
 
         $resources = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $tech, $level + 1, $planetId);
+            ->parseAll($request, 'technology', $tech, $level + 1, $planetId);
 
         if (!empty($techAtUser)) {
             $res[] = [
@@ -204,7 +204,7 @@ class TechController extends Controller
 
         //resources check
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, $tech, $level + 1, $planet->id);
+            ->parseAll($request, 'technology', $tech, $level + 1, $planet->id);
 
 
         if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
