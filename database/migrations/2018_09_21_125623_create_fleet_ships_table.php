@@ -14,6 +14,8 @@ class CreateFleetShipsTable extends Migration
     public function up()
     {
         Schema::create('fleet_ships', function (Blueprint $table) {
+            $table->increments('id')->unsigned()->unique();
+
             $table->integer('fleet_id')->unsigned();
             $table->foreign('fleet_id')->references('id')
                 ->on('fleets')->onDelete('cascade');
@@ -21,6 +23,8 @@ class CreateFleetShipsTable extends Migration
             $table->integer('ship_id')->unsigned();
             $table->foreign('ship_id')->references('id')
                 ->on('ships')->onDelete('cascade');
+
+            $table->unique(['fleet_id', 'ship_id'], 'fleet_id_ship_id_unique');
 
             $table->integer('quantity')->unsigned();
         });

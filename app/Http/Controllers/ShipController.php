@@ -10,6 +10,7 @@ use App\Ship;
 use App\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 
 /**
  * Class PlanetController
@@ -31,14 +32,22 @@ class ShipController extends Controller
     {
         $res = [];
 
-        $fleet = Fleet::where('coordinate_id', $planetId)
-            ->where('id', $fleetId)
-            ->first();
-
         $coordinates = Planet::whereIn('id', [$planetId, $destinationId])->get();
 
         $origin = $coordinates->find($planetId);
         $destination = $coordinates->find($destinationId);
+
+        if (($destination->coordinateX != $origin->coordinateX) || ($destination->coordinateY != $origin->coordinateY))
+            $destinationOrbit = 30;
+        else
+            $destinationOrbit = $destination->orbit;
+
+        $this->moveToOrbit($request, $fleetId, $destinationOrbit, 'move');
+        die;
+        $fleet = Fleet::where('coordinate_id', $planetId)
+            ->where('id', $fleetId)
+            ->first();
+
 
         var_dump($origin->coordinateX);
         var_dump($origin->coordinateY);
@@ -57,7 +66,7 @@ class ShipController extends Controller
 
         //calc travel cost
         echo 'cost in gas ';
-        var_dump($distance*1000);
+        var_dump($distance * 1000);
 
         //check resources available
         echo 'gas ';
@@ -65,7 +74,7 @@ class ShipController extends Controller
 
         //calc max distance (capacity)
         foreach ($fleet->ships as $fleetShip) {
-            foreach ($fleetShip->contains as $ship){
+            foreach ($fleetShip->contains as $ship) {
                 var_dump($ship->id);
                 $shipProperties = app('App\Http\Controllers\ResourceController')
                     ->parseAll($request, 'ship', $ship, 1, $planetId);
@@ -81,7 +90,131 @@ class ShipController extends Controller
         return response()->json($res, 200);
     }
 
-   public function showOneFleet(Request $request, int $planetId, int $fleetId)
+
+    public function moveToOrbit(Request $request, int $fleetId, int $destinationOrbit, string $orderType)
+    {
+
+        $fleet = Fleet::find($fleetId)->first();
+
+        $origin = $fleet->coordinate()->first();
+
+        $destination = Planet::where('coordinateX', $origin->coordinateX)
+            ->where('coordinateY', $origin->coordinateY)
+            ->where('orbit', $destinationOrbit)
+            ->first();
+
+        $distance = abs($origin->orbit - $destinationOrbit);
+
+//        var_dump($origin->orbit);
+//        var_dump($destinationOrbit);
+//        var_dump($distance);
+        $shipsInFleet = $fleet->ships()->get();
+
+        $fuelNeeded = 0;
+        foreach ($shipsInFleet as $shipInFleet) {
+            $ship = Ship::find($shipInFleet->ship_id)->first();
+            $resources = app('App\Http\Controllers\ResourceController')
+                ->parseAll($request, 'ship', $ship, 1, $origin->id);
+
+            $fuelNeeded += $resources['properties']['non-combat']['consumption'] *
+                $shipInFleet->quantity * $distance *
+                Config::get('constants.distance.interplanetary');
+        }
+
+        if ($fuelNeeded > $origin->gas)
+            return response()->json(['status' => 'error', 'message' => 'not enough gas to flight'], 200);
+
+        app('App\Http\Controllers\BuildingController')->buy($origin, ['gas' => $fuelNeeded]);
+
+
+        return $distance;
+    }
+
+    /**
+     * Recalculate fleet capacity
+     * todo: Use on change
+     * @param Request $request
+     * @param int $planetId
+     * @param int $fleetId
+     * @return int
+     */
+    public function recalculateCapacity(Request $request, int $planetId, int $fleetId)
+    {
+        $sumCapacity = 0;
+        $fleetShips = Fleet::find($fleetId)->ships;
+        foreach ($fleetShips as $fleetShip) {
+            $quantity = $fleetShip->quantity;
+
+            foreach ($fleetShip->contains as $ship) {
+                $x = 0;
+
+                $json = json_decode($ship->properties)->{'non-combat'}->capacity;
+                $const['base_capacity'] = $json->constant[0]->base_capacity;
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($const) {
+                        return eval('return $const[\'' . $match[1] . '\'];');
+                    },
+                    $json->formula[0]->capacity);
+
+                eval('$x = round(' . $string_processed . ");");
+
+                $sumCapacity += $x * $quantity;
+
+            }
+        }
+        return (int)$sumCapacity;
+    }
+
+    public function recalculateSpeed(Request $request, int $planetId, int $fleetId)
+    {
+
+        $leastSpeed = 9999;
+
+        $fleetShips = Fleet::find($fleetId)->ships;
+        foreach ($fleetShips as $fleetShip) {
+            foreach ($fleetShip->contains as $ship) {
+
+                $resources = app('App\Http\Controllers\ResourceController')->parseAll($request, "ship", $ship, 1, $planetId);
+                $const = $resources['techAndBuilding'];
+                $x = 0;
+
+                $json = json_decode($ship->properties)->{'non-combat'}->speed;
+                $const['base_speed'] = $json->constant[0]->base_speed;
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($const) {
+                        return eval('return $const[\'' . $match[1] . '\'];');
+                    },
+                    $json->formula[0]->speed);
+
+                eval('$x = round(' . $string_processed . ");");
+
+                $leastSpeed = ($leastSpeed < $x) ? $leastSpeed : $x;
+
+            }
+        }
+        return $leastSpeed;
+    }
+
+    public function loadFleet(Request $request, int $planetId, int $fleetId)
+    {
+        $resourcesToLoad = [
+            'metal' => 10,
+            'crystal' => 20,
+            'gas' => 30,
+        ];
+
+
+    }
+
+    public function unloadFleet()
+    {
+    }
+
+    public function showOneFleet(Request $request, int $planetId, int $fleetId)
     {
         $res = [];
 
@@ -130,7 +263,7 @@ class ShipController extends Controller
         //check que
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
         if (!empty($ref['ships']))
-            $ref = $ref['ships'][0];
+            $ref = $ref['ships'];
 
         $shipDetails = app('App\Http\Controllers\ResourceController')->parseAll($request, 'ship', $ship, 1, $planetId);
 
@@ -279,6 +412,8 @@ class ShipController extends Controller
             ->where('owner_id', $authId)
             ->get();
 
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, Planet::find($planetId));
+
         $shipsAtPlanet = [];
 
         foreach ($fleetList as $fleet) {
@@ -309,6 +444,13 @@ class ShipController extends Controller
                 'properties' => $shipProperties['properties'],
             ];
 
+            if (!empty($ref['ships'])) {
+                if ($ref['ships']['shipId'] == $shipAvailable->id) {
+                    $re['startTime'] = $ref['ships']['shipStartTime'];
+//                $re['timeToBuild'] = $ref['ships']['shipOneTimeToBuild'] * $ref['ships']['shipQuantityQued'];
+                    $re['updated_at'] = Carbon::now()->format('Y-m-d H:i:s');
+                }
+            }
             if (!empty($shipsAtPlanet[$shipAvailable->id]))
                 $re['quantity'] = $shipsAtPlanet[$shipAvailable->id];
             else

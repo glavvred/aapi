@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Building;
+use App\FleetShip;
 use App\Planet;
-use App\Technology;
+use App\Ship;
 use App\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -103,11 +104,13 @@ class BuildingController extends Controller
         foreach ($planet->buildings as $building) {
             $buildingByPivot = $building->pivot;
 
-            //todo: актуальная формула
-            $overallMetalPH += round($building->metal_ph * pow(1.15, $buildingByPivot->level));
-            $overallCrystalPH += round($building->crystal_ph * pow(1.15, $buildingByPivot->level));
-            $overallGasPH += round($building->gas_ph * pow(1.15, $buildingByPivot->level));
-            $energy = round($building->energy_ph * pow(1.15, $buildingByPivot->level));
+            $resources = app('App\Http\Controllers\ResourceController')->parseAll($request, "building", $building, 1, $planet->id);
+
+            $overallMetalPH += $resources['production']['metal'];
+            $overallCrystalPH += $resources['production']['crystal'];
+            $overallGasPH += $resources['production']['gas'];
+            $energy = $resources['production']['energy'];
+
             if ($energy > 0)
                 $overallEnergyAvailable += $energy;
             else
@@ -191,33 +194,33 @@ class BuildingController extends Controller
                     DB::table('fleets')->insert([
                         'owner_id' => $request->auth->id,
                         'coordinate_id' => $planet->id,
+                        'origin_id' => $planet->id,
+                        'overall_speed' => 0,
+                        'overall_capacity' => 0,
                         'created_at' => Carbon::now()->format('Y-m-d H:i:s'),
                     ]);
                     $fleet = $planet->fleets()->where('owner_id', $request->auth->id)->first();
                 }
 
-                //     planet     fleetsC    fleet  fleetShips
-                $fs = $fleet->ships->filter(function ($item) use ($ship) {
-                    return $item->ship_id == $ship->id;
-                })->first();
+                $fs = $fleet->ships->where('ship_id', $ship->id)->first();
 
-                //нет кораблей в флоте на планете
+                //нет заданных кораблей в флоте на планете
                 if (is_null($fs)) {
                     DB::table('fleet_ships')->insert([
                         'fleet_id' => $fleet->id,
                         'ship_id' => $ship->id,
                         'quantity' => 0,
                     ]);
-                    $fs = $fleet->ships->filter(function ($item) use ($ship) {
-                        return $item->ship_id == $ship->id;
-                    })->first();
+                    //refresh
+                    $fs = $fleet->ships->where('ship_id', $ship->id)->first();
                 }
+
+                //добавим к первому флоту на этой планете количество построенного
+                $fs->quantity = $fs->quantity + $quantityBuilt;
+                $fs->save();
 
                 if ($shipByPivot->quantity > $quantityBuilt) {
                     //что то достроилось, но еще остались корабли в очереди
-
-                    //добавим к первому флоту на этой планете количество построенного
-                    $fs->increment('quantity', $quantityBuilt);
 
                     $planet->ships()->updateExistingPivot($ship->id, [
                         'quantity' => $shipByPivot->quantity - $quantityBuilt,
@@ -233,7 +236,9 @@ class BuildingController extends Controller
                         ->diffInSeconds(Carbon::now(), false);
                     $shipQuantityRemain = $shipByPivot->quantity - $quantityBuilt;
 
-                    $shipTime[] = [
+                    $shipTime = [
+                        'shipId' => $ship->id,
+                        'planetId' => $planet->id,
                         'shipStartTime' => $shipStartTime,
                         'shipOneTimeToBuild' => $shipByPivot->timeToBuildOne,
                         'shipTimeRemain' => $shipTimeRemain,
@@ -241,12 +246,11 @@ class BuildingController extends Controller
                         'shipQuantityQued' => $shipQuantityQued,
                         'shipQuantityRemain' => $shipQuantityRemain,
                     ];
-
-
                 } else {
                     //все достроилось
-
-                    $shipTime[] = [
+                    $shipTime = [
+                        'shipId' => null,
+                        'planetId' => null,
                         'shipStartTime' => null,
                         'shipTimeRemain' => null,
                         'shipOneTimeToBuild' => null,
@@ -263,6 +267,13 @@ class BuildingController extends Controller
                         'passedFromLastOne' => null,
                         'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
                 }
+
+                DB::table('fleets')
+                    ->where('id', ($fleet->id))
+                    ->update([
+                        'overall_speed' => app('App\Http\Controllers\ShipController')->recalculateSpeed($request, $planet->id, $fleet->id),
+                        'overall_capacity' => app('App\Http\Controllers\ShipController')->recalculateCapacity($request, $planet->id, $fleet->id)
+                    ]);
             }
         }
 
@@ -278,9 +289,9 @@ class BuildingController extends Controller
             'metal' => $planet->metal,
             'crystal' => $planet->crystal,
             'gas' => $planet->gas,
-            'metalPh' => $planet->metal_ph,
-            'crystalPh' => $planet->crystal_ph,
-            'gasPh' => $planet->gas_ph,
+            'metalPh' => $overallMetalPH,
+            'crystalPh' => $overallCrystalPH,
+            'gasPh' => $overallGasPH,
             'energyAvailable' => $overallEnergyAvailable,
             'energyUsed' => $overallEnergyUsed,
         ],
@@ -321,7 +332,7 @@ class BuildingController extends Controller
                 'planet_building.destroying as pivot_destroying',
                 'buildings.*')
             ->leftJoin(DB::raw(
-                    "(select * from `planet_building` where `planet_building`.`planet_id` = $planetId) planet_building"),
+                "(select * from `planet_building` where `planet_building`.`planet_id` = $planetId) planet_building"),
                 function ($join) {
                     $join->on('planet_building.building_id', '=', 'buildings.id');
                 })
@@ -413,8 +424,6 @@ class BuildingController extends Controller
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
             ->parseAll($request, 'building', $building, $level + 1, $planetId);
 
-//        var_dump($resourcesAtLevel);
-
         if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
 
@@ -478,6 +487,13 @@ class BuildingController extends Controller
      */
     public function buy(Planet $planet, array $resources)
     {
+        if (empty($resources['metal']))
+            $resources['metal'] = 0;
+        if (empty($resources['crystal']))
+            $resources['crystal'] = 0;
+        if (empty($resources['gas']))
+            $resources['gas'] = 0;
+
         try {
             DB::beginTransaction();
             $planet = DB::table('planets')->where('id', $planet->id)->lockForUpdate()->first();

@@ -23,7 +23,7 @@ class PlanetController extends Controller
         //
     }
 
-    /**1
+    /**
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -50,6 +50,8 @@ class PlanetController extends Controller
         foreach ($planets as $planet) {
             $refreshed = app(BuildingController::class)->refreshPlanet($request, $planet);
 
+            $ships = (!empty($refreshed['ships'])) ?  $refreshed['ships'] : ['shipStartTime' => 0, 'shipQuantityQued' => 0, 'shipOneTimeToBuild' => 0];
+
             $plan = [
                 "id" => $planet['id'],
                 "owner_id" => $planet['owner_id'],
@@ -63,26 +65,27 @@ class PlanetController extends Controller
                 "coordinateY" => $planet['coordinateY'],
                 "orbit" => $planet['orbit'],
                 "type" => $planet['type'],
-                "created_at" =>  $planet['created_at'],
-                "updated_at" =>  $planet['updated_at'],
+                "created_at" => $planet['created_at'],
+                "updated_at" => $planet['updated_at'],
                 "resources" => $refreshed['resources'],
                 "ques" => [
                     "buildings" => [
-                        "startTime"=> $refreshed['buildingStartTime'],
-                        "buildingQued"=> $refreshed['buildingQued'],
-                        "timeToBuild"=> $refreshed['buildingTimeToBuild'],
+                        "startTime" => $refreshed['buildingStartTime'],
+                        "buildingQued" => $refreshed['buildingQued'],
+                        "timeToBuild" => $refreshed['buildingTimeToBuild'],
                     ],
                     "technologies" => [
-                        "startTime"=> $refreshed['techStartTime'],
-                        "techQued"=> $refreshed['techQued'],
-                        "timeToBuild"=> $refreshed['technologyTimeToBuild'],
+                        "startTime" => $refreshed['techStartTime'],
+                        "techQued" => $refreshed['techQued'],
+                        "timeToBuild" => $refreshed['technologyTimeToBuild'],
+                    ],
+                    "ships" => [
+                        "startTime" => $ships['shipStartTime'],
+                        "shipQued" => $ships['shipQuantityQued'],
+                        "timeToBuild" => $ships['shipQuantityQued'] * $ships['shipOneTimeToBuild'],
                     ],
                 ],
             ];
-
-            foreach ($refreshed['ships'] as $ship) {
-                $plan['ques']['ships'][] = $ship;
-            }
 
             foreach ($planet['buildings'] as $building) {
                 $plan['buildings'][] = [

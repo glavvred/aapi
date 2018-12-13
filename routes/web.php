@@ -30,9 +30,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
     $router->get('test/requirements', 'ResourceController@defaultJsonRequirements');
     $router->get('test/upgrades', 'ResourceController@defaultJsonUpgrades');
     $router->get('test/properties', 'ResourceController@defaultJsonProperties');
-    $router->get('test/{pid}/building/{bid}/level/{level}', 'ResourceController@test');
-    $router->get('test/{pid}/building/{bid}', 'ResourceController@testMany');
-    $router->get('test/{pid}/ship/{bid}', 'ResourceController@testShip');
+
 
 
     //auth
@@ -42,6 +40,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->group(['middleware' => 'jwt.auth'], function () use ($router) {
             $router->get('logout', 'AuthController@logout');
         });
+
     });
 
     //no auth
@@ -49,6 +48,12 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
     //auth + scope
     $router->group(['middleware' => ['jwt.auth', 'astrality.scope']], function () use ($router) {
+
+        //test
+        $router->get('test/{pid}/building/{bid}/level/{level}', 'ResourceController@test');
+        $router->get('test/{pid}/building/{bid}', 'ResourceController@testMany');
+        $router->get('test/{pid}/ship/{bid}', 'ResourceController@testShip');
+
 
         //users
         $router->get('users', ['uses' => 'UserController@showAllUsers']);
@@ -93,6 +98,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
         $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
         $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);
+        $router->get('planets/{id}/fleet/{fid}/test', ['uses' => 'ShipController@loadFleet']);
         $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
         $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showOneFleet']);
         $router->get('planets/{id}/fleet/{fleetId}/move/{destination}/order/{order}', ['uses' => 'ShipController@moveFleet']);

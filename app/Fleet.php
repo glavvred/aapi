@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Fleet extends Model
 {
 
-    public $timestamps = false;
+    public $timestamps = true;
 
     /**
      * The attributes that are mass assignable.
@@ -16,9 +16,17 @@ class Fleet extends Model
      */
     protected $fillable = [
         'owner_id',
-        'originId',
-        'coordinateId',
-        'captainId'
+        'origin_id',
+        'coordinate_id',
+        'destination_id',
+        'captainId',
+        'orderType',
+        'overall_capacity',
+        'overall_speed',
+        'metal',
+        'crystal',
+        'gas',
+
     ];
 
     /**
@@ -44,8 +52,7 @@ class Fleet extends Model
      */
     public function coordinate()
     {
-        return $this->belongsToMany(Planet::class, 'fleets', 'id', 'coordinate_id')
-            ->withPivot('quantity');
+        return $this->belongsToMany(Planet::class, 'fleets', 'id', 'coordinate_id');
     }
 
     /**
@@ -74,7 +81,6 @@ class Fleet extends Model
     {
         return $this->hasMany(FleetShip::class, 'fleet_id');
     }
-
 
 }
 

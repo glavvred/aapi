@@ -28,9 +28,25 @@ class CreateFleetsTable extends Migration
             $table->foreign('coordinate_id')->references('id')
                 ->on('planets')->onDelete('cascade');
 
+            $table->integer('destination_id')->unsigned()->nullable();
+            $table->foreign('destination_id')->references('id')
+                ->on('planets')->onDelete('cascade');
+
             $table->integer('captain_id')->unsigned()->nullable();
             $table->foreign('captain_id')->references('id')
                 ->on('captains')->onDelete('cascade');
+
+            $table->integer('order_type')->unsigned()->nullable();
+            $table->foreign('order_type')->references('id')
+                ->on('orders')->onDelete('cascade');
+
+
+            $table->integer('overall_speed')->unsigned();
+            $table->integer('overall_capacity')->unsigned();
+
+            $table->integer('metal')->unsigned()->nullable();
+            $table->integer('crystal')->unsigned()->nullable();
+            $table->integer('gas')->unsigned()->nullable();
 
             $table->timestamps();
         });

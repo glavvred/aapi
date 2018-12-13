@@ -67,10 +67,7 @@ class ResourceController extends Controller
         )
             throw new InvalidArgumentException('Json decode error: ' . json_last_error());
 
-        if (empty($request->auth->id))
-            $userId = 2; //todo: test, remove from production
-        else
-            $userId = $request->auth->id;
+        $userId = $request->auth->id;
 
         $user = User::find($userId);
 
@@ -106,6 +103,7 @@ class ResourceController extends Controller
             'production' => $production,
             'requirements' => $requirements,
             'upgrades' => $upgrades,
+            'techAndBuilding' => $techBuildingBonus,
         ];
 
         if (!empty($props))
@@ -399,7 +397,7 @@ class ResourceController extends Controller
 
         foreach ($currentFormula as $key => $resource) {
             if ($key == 'level')
-                continue;
+                $constants['level'] = $level;
             $x = 0;
 
             $string_processed = preg_replace_callback(
@@ -461,7 +459,11 @@ class ResourceController extends Controller
                 $constants[$key] = $value;
             }
 
+
             foreach ($currentFormula as $key => $resource) {
+                if ($key == 'level')
+                    $constants['level'] = $level;
+
                 $x = 0;
 
                 $string_processed = preg_replace_callback(
@@ -551,6 +553,15 @@ class ResourceController extends Controller
         return $res;
     }
 
+    /**
+     * Check user upgrades and building levels against needed
+     * @param Request $request
+     * @param string $objType
+     * @param int $planetId
+     * @param object $instanceToCheck
+     * @param $requirements
+     * @return array
+     */
     public function checkRequirements(Request $request, string $objType, int $planetId, object $instanceToCheck, $requirements)
     {
         $planet = Planet::where('id', $planetId)->firstOrFail();
@@ -715,6 +726,7 @@ class ResourceController extends Controller
                     $constants = array_merge($cConstants, $techBuildingBonus);
 
                     foreach ($item->formula[0] as $fkey => $ship) {
+
                         if ($fkey == 'level')
                             continue;
                         $string_processed = preg_replace_callback(
@@ -778,7 +790,9 @@ class ResourceController extends Controller
                         foreach ($item['building'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " . $req . '<br> ';
+                            echo $reqKey . " : " ;
+                            var_dump($req);
+                            echo '<br> ';
                         }
                     }
                     if (!empty($item['technology'])) {
@@ -786,7 +800,9 @@ class ResourceController extends Controller
                         foreach ($item['technology'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " . $req . '<br> ';
+                            echo $reqKey . " : " ;
+                            var_dump($req);
+                            echo '<br> ';
                         }
                     }
                     echo '</td>';
