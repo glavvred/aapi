@@ -28,6 +28,40 @@ class FleetShip extends Model
     protected $hidden = [
     ];
 
+    public static function boot()
+    {
+        parent::boot();
+
+        self::creating(function ($model) {
+            // ... code here
+        });
+
+        self::created(function ($model) {
+            // ... code here
+        });
+
+        self::updating(function ($model) {
+            // ... code here
+        });
+
+        self::updated(function ($model) {
+
+            $fleet = $model->fleet()->first();
+
+            $fleet->overall_capacity = app('App\Http\Controllers\ShipController')->recalculateCapacity($fleet->id);
+            $fleet->overall_speed = app('App\Http\Controllers\ShipController')->recalculateSpeed($fleet->id);
+            $fleet->save();
+        });
+
+        self::deleting(function ($model) {
+            // ... code here
+        });
+
+        self::deleted(function ($model) {
+            // ... code here
+        });
+    }
+
     /**
      * Получить все модели, обладающие флотами.
      */
@@ -35,6 +69,16 @@ class FleetShip extends Model
     {
         return $this->hasMany(Ship::class, 'id', 'ship_id');
     }
+
+    /**
+     * Parent fleet.
+     */
+    public function fleet()
+    {
+        return $this->belongsTo(Fleet::class, 'fleet_id', 'id')->get();
+    }
+
+
 }
 
 

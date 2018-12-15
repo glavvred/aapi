@@ -96,12 +96,18 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
         //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
+
         $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
         $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);
         $router->get('planets/{id}/fleet/{fid}/test', ['uses' => 'ShipController@loadFleet']);
         $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
         $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showOneFleet']);
-        $router->get('planets/{id}/fleet/{fleetId}/move/{destination}/order/{order}', ['uses' => 'ShipController@moveFleet']);
+
+        //fleet actions
+        $router->post('planets/{id}/fleet/{fleetId}/cargo', ['uses' => 'ShipController@transferResourcesToFleet']);
+        $router->post('planets/{id}/fleet/{fleetId}/transfer', ['uses' => 'ShipController@transferShipsToFleet']);
+
+        $router->get('planets/{id}/fleet/{fleetId}/move/{destination}/order/{order}', ['uses' => 'ShipController@moveToOrbit']);
         $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'ShipController@build']);
 
 

@@ -32,11 +32,11 @@ class Planet extends Model
 
     /**
      * Вернем юзера, владеющего планетой
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo | User
      */
     public function owner()
     {
-        return $this->belongsTo(User::class, 'owner_id', 'id');
+        return $this->belongsTo(User::class, 'owner_id', 'id')->first();
     }
 
     /**
@@ -62,7 +62,7 @@ class Planet extends Model
     /**
      * Флоты на планете
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
-     */
+*/
     public function fleets()
     {
         return $this->hasMany(Fleet::class, 'coordinate_id');

@@ -55,7 +55,7 @@ class BuildingController extends Controller
 
         if (!empty($building->resources) || !empty($building->requirements) || !empty($building->upgrades)) {
             $resources = app('App\Http\Controllers\ResourceController')
-                ->parseAll($building, 'building', $buildingAtUser->pivot->level);
+                ->parseAll($user, $building, $buildingAtUser->pivot->level, $id);
         }
 
         $res['resources'] = [
@@ -85,8 +85,7 @@ class BuildingController extends Controller
      */
     public function refreshPlanet(Request $request, Planet $planet)
     {
-        $owner = $request->auth->id;
-        $user = User::find($owner);
+        $owner = User::find($planet->owner_id);
 
         $buildingStartTime = $buildingTimeToBuild = $buildingTimeRemain = $buildingsQued = 0;
 
@@ -104,7 +103,7 @@ class BuildingController extends Controller
         foreach ($planet->buildings as $building) {
             $buildingByPivot = $building->pivot;
 
-            $resources = app('App\Http\Controllers\ResourceController')->parseAll($request, "building", $building, 1, $planet->id);
+            $resources = app('App\Http\Controllers\ResourceController')->parseAll($owner, $building, 1, $planet->id);
 
             $overallMetalPH += $resources['production']['metal'];
             $overallCrystalPH += $resources['production']['crystal'];
@@ -143,7 +142,7 @@ class BuildingController extends Controller
         }
 
         //технологии
-        foreach ($user->technologies as $technology) {
+        foreach ($owner->technologies as $technology) {
             $techByPivot = $technology->pivot;
             if ($techByPivot->planet_id == $planet->id) {
                 if (!empty($techByPivot->startTime) && !(empty($techByPivot->timeToBuild))) {
@@ -212,6 +211,7 @@ class BuildingController extends Controller
                         'quantity' => 0,
                     ]);
                     //refresh
+                    $fleet = $fleet->refresh();
                     $fs = $fleet->ships->where('ship_id', $ship->id)->first();
                 }
 
@@ -267,13 +267,6 @@ class BuildingController extends Controller
                         'passedFromLastOne' => null,
                         'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
                 }
-
-                DB::table('fleets')
-                    ->where('id', ($fleet->id))
-                    ->update([
-                        'overall_speed' => app('App\Http\Controllers\ShipController')->recalculateSpeed($request, $planet->id, $fleet->id),
-                        'overall_capacity' => app('App\Http\Controllers\ShipController')->recalculateCapacity($request, $planet->id, $fleet->id)
-                    ]);
             }
         }
 
@@ -360,7 +353,7 @@ class BuildingController extends Controller
                 $building->pivot_level = 0;
 
             $resources = app('App\Http\Controllers\ResourceController')
-                ->parseAll($request, 'building', $building, $building->pivot_level, $planetId);
+                ->parseAll($user, $building, $building->pivot_level, $planetId);
 
             $res[$building->id]['resources'] = [
                 'current' => $resources['cost'],
@@ -397,6 +390,9 @@ class BuildingController extends Controller
         $planet = Planet::find($planetId);
         if (!$planet)
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
+
+        $user = User::find($planet->owner_id);
+
         $ref = $this->refreshPlanet($request, $planet);
 
         //que check
@@ -422,7 +418,7 @@ class BuildingController extends Controller
 
         //resources check
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, 'building', $building, $level + 1, $planetId);
+            ->parseAll($user, $building, $level + 1, $planetId);
 
         if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
@@ -515,10 +511,11 @@ class BuildingController extends Controller
         //нашли планету
         $planet = Planet::find($planetId);
         $user = User::find($request->auth->id);
+        $owner = User::find($planet->owner_id);
 
         if (!$planet)
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
-        if ($planet->owner_id != $user->id)
+        if ($user != $owner)
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
 
         $ref = $this->refreshPlanet($request, $planet);
@@ -532,7 +529,7 @@ class BuildingController extends Controller
 
         //resources refund
         $refund = $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
-            ->parseAll($building, 'building', $buildingAtPlanet->pivot->level, $buildingAtPlanet, $planetId);
+            ->parseAll($owner, $buildingAtPlanet->pivot->level, $buildingAtPlanet, $planetId);
 
         $this->buy($planet, $refund);
 
@@ -567,7 +564,7 @@ class BuildingController extends Controller
 
     /**
      * Remove one level from given building
-     * Error if building current level is 0
+     * Message if building current level is 0
      * Slots check, resources refund
      *
      * @param $request Request

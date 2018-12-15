@@ -14,7 +14,7 @@ class BuildingPlanetTableSeeder extends Seeder
         $planets = App\Planet::with('owner')->get();
         $planets->each(function ($p) {
             if (!empty($p->owner_id)) {
-                $race = $p->owner()->first()->race;
+                $race = $p->owner()->race;
                 $building = DB::table('buildings')->where('race', $race)->get();
                 $num = random_int(0, 10);
                 for ($i = 1; $i < $num; $i++) {

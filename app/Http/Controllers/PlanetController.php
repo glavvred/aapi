@@ -47,9 +47,9 @@ class PlanetController extends Controller
             ->where('owner_id', $request->auth->id)
             ->get();
         $res = [];
+
         foreach ($planets as $planet) {
             $refreshed = app(BuildingController::class)->refreshPlanet($request, $planet);
-
             $ships = (!empty($refreshed['ships'])) ?  $refreshed['ships'] : ['shipStartTime' => 0, 'shipQuantityQued' => 0, 'shipOneTimeToBuild' => 0];
 
             $plan = [

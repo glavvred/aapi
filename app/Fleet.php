@@ -39,20 +39,21 @@ class Fleet extends Model
 
     /**
      * Владелец флота
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo | User
      */
     public function owner()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->first();
     }
+
 
     /**
      * Текущая координата
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function coordinate()
     {
-        return $this->belongsToMany(Planet::class, 'fleets', 'id', 'coordinate_id');
+        return $this->belongsTo(Planet::class, 'coordinate_id', 'id');
     }
 
     /**

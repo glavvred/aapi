@@ -62,16 +62,6 @@ class Ship extends Model
 
         return $translated;
     }
-
-    public function getData($request, $planetId)
-    {
-        $level = 1;
-        $data = app('App\Http\Controllers\ResourceController')
-            ->parseAll($request, 'ship', $this, $level, $planetId);
-
-        return $data;
-    }
-
 }
 
 

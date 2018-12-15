@@ -21,8 +21,4 @@ class FleetController extends Controller
         //
     }
 
-    public function moveFleet($fleetId, $coordinateId, $order){
-        $fleet = Fleet::find($fleetId)->first();
-        $from = $fleet->origin_id;
-    }
 }

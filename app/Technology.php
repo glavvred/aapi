@@ -54,7 +54,7 @@ class Technology extends Model
             ->first();
 
         if (empty($translated)) {
-            throw  new \Exception('no translation found for ship_name:'.$this->name. ' and language:'.$language);
+            throw  new \Exception('no translation found for technology_name :'.$this->name. ' and language: '.$language);
         }
         return $translated;
     }

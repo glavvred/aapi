@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Building;
 use App\Planet;
 use App\Ship;
+use App\Technology;
 use App\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Psr\Log\InvalidArgumentException;
 
 
@@ -38,38 +40,35 @@ class ResourceController extends Controller
     {
         $res = Building::find($buildingId);
 
-        $data = $this->parseAll($request, 'building', $res, $level, $planetId);
+        $data = $this->parseAll(User::find($request->auth->id), $res, $level, $planetId);
         return json_encode($data);
     }
 
     /**
      * Parse all fields
-     * @param $request Request
-     * @param $jsonData object
+     * @param User $user
+     * @param $instanceToCheck object
      * @param int $level
      * @param int $planetId
      * @return array
      */
-    public function parseAll(Request $request, $objType, $jsonData, int $level = 1, int $planetId)
+    public function parseAll(User $user, object $instanceToCheck, int $level = 1, int $planetId)
     {
-        $res = json_decode($jsonData->resources);
-        $req = json_decode($jsonData->requirements);
-        $upg = json_decode($jsonData->upgrades);
+
+        $res = json_decode($instanceToCheck->resources);
+        $req = json_decode($instanceToCheck->requirements);
+        $upg = json_decode($instanceToCheck->upgrades);
 
         $props = [];
-        if (!empty($jsonData->properties))
-            $props = json_decode($jsonData->properties);
+        if (!empty($instanceToCheck->properties))
+            $props = json_decode($instanceToCheck->properties);
 
-        if ((empty($res) && !empty($jsonData->resources)) ||
-            (empty($req) && !empty($jsonData->requirements)) ||
-            (empty($upg) && !empty($jsonData->upgrades)) ||
-            (empty($props) && !empty($jsonData->properties))
+        if ((empty($res) && !empty($instanceToCheck->resources)) ||
+            (empty($req) && !empty($instanceToCheck->requirements)) ||
+            (empty($upg) && !empty($instanceToCheck->upgrades)) ||
+            (empty($props) && !empty($instanceToCheck->properties))
         )
             throw new InvalidArgumentException('Json decode error: ' . json_last_error());
-
-        $userId = $request->auth->id;
-
-        $user = User::find($userId);
 
         //assuming NO variables except level in technology bonus
         $technologyBonus = $this->getAllCurrentTechnologiesBonus($user->id);
@@ -91,7 +90,7 @@ class ResourceController extends Controller
         //requirements
         $requirementsParsed = $this->parseRequirements($req, $level, $techBuildingBonus);
 
-        $requirements = $this->checkRequirements($request, $objType, $planetId, $jsonData, $requirementsParsed);
+        $requirements = $this->checkRequirements($user, $planetId, $instanceToCheck, $requirementsParsed);
 
         //upgrades
         $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus);
@@ -394,10 +393,9 @@ class ResourceController extends Controller
         foreach ($currentConstants as $key => $value) {
             $constants[$key] = $value;
         }
+        $constants['level'] = $level;
 
         foreach ($currentFormula as $key => $resource) {
-            if ($key == 'level')
-                $constants['level'] = $level;
             $x = 0;
 
             $string_processed = preg_replace_callback(
@@ -406,7 +404,6 @@ class ResourceController extends Controller
                     return eval('return $constants[\'' . $match[1] . '\'];');
                 },
                 $resource);
-
             eval('$x = round(' . $string_processed . ");");
             $costResources[$key] = $x;
         };
@@ -555,21 +552,19 @@ class ResourceController extends Controller
 
     /**
      * Check user upgrades and building levels against needed
-     * @param Request $request
-     * @param string $objType
+     * @param User $user
      * @param int $planetId
      * @param object $instanceToCheck
      * @param $requirements
      * @return array
      */
-    public function checkRequirements(Request $request, string $objType, int $planetId, object $instanceToCheck, $requirements)
+    public function checkRequirements(User $user, int $planetId, object $instanceToCheck, $requirements)
     {
         $planet = Planet::where('id', $planetId)->firstOrFail();
-        $user = User::find($request->auth->id);
 
         $res = [];
 
-        if ($objType == 'building') {
+        if ($instanceToCheck instanceof Building) {
             //self can only be building
             if (!empty($requirements['building']['self'])) {
                 $requirements['building'][$instanceToCheck->name] = $requirements['building']['self'];
@@ -577,7 +572,7 @@ class ResourceController extends Controller
             }
         }
 
-        if ($objType == 'technology') {
+        if ($instanceToCheck instanceof Technology) {
             //self can only be technology
             if (!empty($requirements['technology']['self'])) {
                 $requirements['technology'][$instanceToCheck->name] = $requirements['technology']['self'];
@@ -755,13 +750,13 @@ class ResourceController extends Controller
      */
     public function testMany(Request $request, int $planetId, int $buildingId)
     {
-        $res = Building::find($buildingId);
+        $building = Building::find($buildingId);
 
         echo '<table border="1" width="100%">';
         for ($level = 0; $level < 101; $level++) {
             echo '<tr><td width="40px"> level: ' . $level . '</td>';
             echo '<td>';
-            foreach ($this->parseAll($request, 'building', $res, $level, $planetId) as $key => $item) {
+            foreach ($this->parseAll(User::find($request->auth->id), $building, $level, $planetId) as $key => $item) {
                 echo '<table border="1" style="float: left; width: 22%;">
                     <tr><th>' . $key . '</th><td>';
                 if (!empty($item['metal'])) {
@@ -838,7 +833,7 @@ class ResourceController extends Controller
     {
         $res = Ship::find($shipId);
 
-        $parsed = $this->parseAll($request, 'ship', $res, 1, $planetId);
+        $parsed = $this->parseAll(User::find($request->auth->id), $res, 1, $planetId);
 
         echo '<table border="1" width="100%">';
         echo '<tr><td>';
