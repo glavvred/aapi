@@ -195,14 +195,14 @@ class ShipController extends Controller
         if ($droneCount > $droneCapacity)
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('drone_capacity_not_enough_to_flight', $language)], 200);
 
-        $routes = $fleet->routes();
-        foreach ($routes as $route) {
-            app(RouteController::class)->getCollisions($route);
-        }
-
-        die;
-        RouteController::add($fleet, $destination, $orderType);
-
+//        $routes = $fleet->routes();
+//        foreach ($routes as $route) {
+//            app(RouteController::class)->getCollisions($route);
+//        }
+//
+//        die;
+        RouteController::ladder($request, $fleet, $destination, $orderType);
+die;
         return response()->json(['status' => 'success', 'message' => MessagesController::i18n('fleet_dispatched', $language)], 200);
 
     }
