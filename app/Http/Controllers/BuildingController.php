@@ -27,6 +27,7 @@ class BuildingController extends Controller
      * Show building details
      * For level 1+ show current building stats
      *
+     * @uses i18n
      * @param Request $request
      * @param int $id Planet
      * @param int $bid Building
@@ -35,6 +36,8 @@ class BuildingController extends Controller
     public function showOneBuilding(Request $request, int $id, int $bid)
     {
         $user = User::find($request->auth->id);
+        $language = $user->language;
+
         $building = Building::where('id', $bid)->first();
 
         //building info
@@ -47,6 +50,9 @@ class BuildingController extends Controller
         ];
 
         $planet = Planet::find($id);
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+
         $ref = $this->refreshPlanet($request, $planet);
         //fresh buildings data
         $buildingAtUser = $planet->buildings->find($bid);
@@ -79,12 +85,18 @@ class BuildingController extends Controller
      * Counts ques, updates buildings, technologies if it is done
      * Counts resources from buildings, updates planet resources by time delta * resources per hour
      *
+     * @uses i18n
      * @param $request Request
      * @param Planet $planet
      * @return array
      */
     public function refreshPlanet(Request $request, Planet $planet)
     {
+        $language = $request->auth->language;
+
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+
         $owner = User::find($planet->owner_id);
 
         $buildingStartTime = $buildingTimeToBuild = $buildingTimeRemain = $buildingsQued = 0;
@@ -153,7 +165,7 @@ class BuildingController extends Controller
                         $techStatus = 0;
 
                         //что то достроилось
-                        $user->technologies()->updateExistingPivot($technology->id, [
+                        $owner->technologies()->updateExistingPivot($technology->id, [
                             'level' => $techByPivot->level + 1,
                             'planet_id' => null,
                             'startTime' => null,
@@ -305,13 +317,19 @@ class BuildingController extends Controller
     /**
      * Show buildings list by planetId
      *
+     * @uses i18n
      * @param Request $request
      * @param int $planetId Planet
      * @return \Illuminate\Http\JsonResponse
      */
     public function showAllBuildings(Request $request, int $planetId)
     {
+        $language = $request->auth->language;
         $planet = Planet::find($planetId);
+
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+
         $user = User::find($request->auth->id);
 
         $bap = DB::table('buildings-with-lang as buildings')
@@ -379,6 +397,7 @@ class BuildingController extends Controller
      * Add level 0 if no building exists
      * Resource, slots check
      *
+     * @uses i18n
      * @param $request Request
      * @param int $planetId Planet
      * @param int $buildingId Building
@@ -386,10 +405,13 @@ class BuildingController extends Controller
      */
     public function upgradeBuilding(Request $request, int $planetId, int $buildingId)
     {
+        $language = $request->auth->language;
+
         //нашли планету
         $planet = Planet::find($planetId);
-        if (!$planet)
-            return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
+
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
 
         $user = User::find($planet->owner_id);
 
@@ -397,12 +419,12 @@ class BuildingController extends Controller
 
         //que check
         if ($ref['buildingQued'] && ($ref['buildingTimeRemain'] > 0))
-            return response()->json(['status' => 'error', 'message' => 'que is not empty', 'time_remain' => $ref['buildingTimeRemain']], 403);
+            return response()->json(['status' => 'error', 'message' =>  MessagesController::i18n('building_que_not_empty', $language), 'time_remain' => $ref['buildingTimeRemain']], 403);
 
         $slots = $this->slotsAvailable($planet);
 
         if (!$slots['canBuild'])
-            return response()->json(['status' => 'error', 'message' => 'no planet slots available', 'time_remain' => $ref['buildingTimeRemain']], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_slots_insufficient', $language), 'time_remain' => $ref['buildingTimeRemain']], 403);
 
         $building = Building::find($buildingId);
 
@@ -421,7 +443,7 @@ class BuildingController extends Controller
             ->parseAll($user, $building, $level + 1, $planetId);
 
         if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
-            return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('no_resources', $language)], 403);
 
         $this->buy($planet, $resourcesAtLevel['cost']);
 
@@ -479,9 +501,10 @@ class BuildingController extends Controller
      *
      * @param Planet $planet
      * @param array $resources
+     * @param bool $refund
      * @return void
      */
-    public function buy(Planet $planet, array $resources)
+    public function buy(Planet $planet, array $resources, $refund = false)
     {
         if (empty($resources['metal']))
             $resources['metal'] = 0;
@@ -489,6 +512,12 @@ class BuildingController extends Controller
             $resources['crystal'] = 0;
         if (empty($resources['gas']))
             $resources['gas'] = 0;
+
+        if ($refund) {
+            $resources['metal'] = -$resources['metal'];
+            $resources['crystal'] = -$resources['crystal'];
+            $resources['gas'] = -$resources['gas'];
+        }
 
         try {
             DB::beginTransaction();
@@ -506,23 +535,34 @@ class BuildingController extends Controller
         }
     }
 
+    /**
+     * Cancel building request
+     *
+     * @uses i18n
+     * @param Request $request
+     * @param int $bid
+     * @param int $planetId
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function cancelBuilding(Request $request, int $bid, int $planetId)
     {
-        //нашли планету
+        $language = $request->auth->language;
+
         $planet = Planet::find($planetId);
+        if (!$planet)
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+
         $user = User::find($request->auth->id);
         $owner = User::find($planet->owner_id);
 
-        if (!$planet)
-            return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
         if ($user != $owner)
-            return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
 
         $ref = $this->refreshPlanet($request, $planet);
 
         //slots check
         if (!$ref['buildingQued'] || ($ref['queTimeRemain'] == 0))
-            return response()->json(['status' => 'error', 'message' => 'no buildings qued'], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_que_empty', $language)], 403);
 
         $building = Building::find($bid);
         $buildingAtPlanet = $planet->buildings()->find($bid);
@@ -543,7 +583,7 @@ class BuildingController extends Controller
         $ref = $this->refreshPlanet($request, $planet);
 
         return response()->json(['status' => 'success',
-            'message' => 'building removed from que',
+            'message' => MessagesController::i18n('building_removed_from_que', $language),
             'building' => [
                 'id' => $building->id,
                 'name' => $building->i18n($user->language)->name,
@@ -567,6 +607,7 @@ class BuildingController extends Controller
      * Message if building current level is 0
      * Slots check, resources refund
      *
+     * @uses i18n
      * @param $request Request
      * @param int $planetId
      * @param int $buildingId
@@ -574,35 +615,31 @@ class BuildingController extends Controller
      */
     public function downgradeBuilding(Request $request, int $planetId, int $buildingId)
     {
+        $language = $request->auth->language;
+
         $planet = Planet::find($planetId);
         if (!$planet)
-            return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        $user = User::find($planet->owner_id);
 
         $ref = $this->refreshPlanet($request, $planet);
         //slots check
         if ($ref['buildingQued'] && ($ref['queTimeRemain'] > 0))
-            return response()->json(['status' => 'error', 'message' => 'no slots available', 'time_remain' => $ref['queTimeRemain']], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_que_not_empty', $language), 'time_remain' => $ref['queTimeRemain']], 403);
+
+        $building = Building::find($buildingId);
 
         $buildingAtPlanet = $planet->buildings()->where('building_id', $buildingId)->first();
         if (!$buildingAtPlanet || ($buildingAtPlanet->pivot->level <= 0))
-            return response()->json(['status' => 'error', 'message' => 'building is lvl 0'], 403);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_level_0', $language)], 403);
 
         //resources refund
-        $resources = [
-            'metal' => -$buildingAtPlanet->cost_metal,
-            'crystal' => -$buildingAtPlanet->cost_crystal,
-            'gas' => -$buildingAtPlanet->cost_gas,
-            'dark_matter' => -$buildingAtPlanet->cost_dark_matter,
-            'time' => -$buildingAtPlanet->cost_time,
-        ];
-        $resourcesAtLevel = $this->calcLevelResourceCost($buildingAtPlanet->pivot->level - 1, $resources);
+        $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
+            ->parseAll($user, $building, $buildingAtPlanet->pivot->level, $planetId);
 
-        //todo: slots check
+        $this->buy($planet, $resourcesAtLevel, true);
 
-        $this->buy($planet, $resourcesAtLevel);
-
-        $timeToBuild = $this->calcLevelTimeCost($buildingAtPlanet->pivot->level - 1, $buildingAtPlanet->cost_time);
-
+        $timeToBuild = $resourcesAtLevel['cost']['time'];
 
         $planet->buildings()->updateExistingPivot($buildingAtPlanet->id, [
             'level' => $buildingAtPlanet->pivot->level - 1,
@@ -613,46 +650,7 @@ class BuildingController extends Controller
 
         return response()->json(['status' => 'success',
             'level' => $buildingAtPlanet->pivot->level - 1,
-            'timeToBuild' => $this->calcLevelTimeCost($buildingAtPlanet->pivot->level - 1, $buildingAtPlanet->cost_time)
+            'timeToBuild' => $timeToBuild
         ], 200);
     }
-
-    /**
-     * TODO: move to Resource class
-     * @param $level
-     * @param array $levelOneResources
-     * @return mixed
-     */
-    public function calcLevelResourceCost($level, array $levelOneResources)
-    {
-        $res['metal'] = round($levelOneResources['metal'] * pow(1.55, $level));
-        $res['crystal'] = round($levelOneResources['crystal'] * pow(1.55, $level));
-        $res['gas'] = round($levelOneResources['gas'] * pow(1.55, $level));
-        $res['dark_matter'] = round($levelOneResources['dark_matter'] * pow(1.55, $level));
-        $res['time'] = $this->calcLevelTimeCost($level, $levelOneResources['time']);
-        return $res;
-    }
-
-    /**
-     * TODO: move to Resource class
-     *
-     * @param $level
-     * @param $levelOneTimeCost
-     * @return float
-     */
-    public function calcLevelTimeCost($level, $levelOneTimeCost)
-    {
-        return round($levelOneTimeCost * pow(1.55, $level));
-    }
-
-    /**
-     * TODO: move to Resource class
-     * @param $level
-     * @param $formula
-     */
-    public function calcLevelResourcePh($level, $formula)
-    {
-
-    }
-
 }

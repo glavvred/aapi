@@ -96,6 +96,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
         //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
+        $router->get('fleet/test', ['uses' => 'RouteController@test']);
 
         $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
         $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);

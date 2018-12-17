@@ -56,13 +56,14 @@ class Fleet extends Model
         return $this->belongsTo(Planet::class, 'coordinate_id', 'id');
     }
 
+
     /**
-     * Маршрут
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * Маршруты
+     * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function route()
+    public function routes()
     {
-        return $this->belongsTo(Route::class);
+        return $this->hasMany(Route::class, 'fleet_id', 'id')->get();
     }
 
     /**

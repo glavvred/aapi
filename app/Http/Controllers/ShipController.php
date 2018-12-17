@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
+
 /**
  * Class PlanetController
  * @package App\Http\Controllers
@@ -94,6 +95,16 @@ class ShipController extends Controller
     }
 
 
+    /**
+     * Move fleet to given orbit
+     * @uses i18n
+     * @param Request $request
+     * @param int $fleetId
+     * @param int $planetId
+     * @param int $destinationOrbit
+     * @param int $orderType
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function moveToOrbit(Request $request, int $fleetId, int $planetId, int $destinationOrbit, int $orderType)
     {
 
@@ -106,13 +117,29 @@ class ShipController extends Controller
         $destination = Planet::where('coordinateX', $origin->coordinateX)
             ->where('coordinateY', $origin->coordinateY)
             ->where('orbit', $destinationOrbit)
-            ->first();
+            ->firstOrNew([
+                'coordinateX' => $origin->coordinateX,
+                'coordinateY' => $origin->coordinateY,
+                'orbit' => $destinationOrbit,
+            ]);
+
+        if (empty($destination->name)) {
+            $destination->name = $origin->coordinateX . ':' . $origin->coordinateY . ':' . $destinationOrbit;
+            $destination->slots = 0;
+            $destination->temperature = 0;
+            $destination->diameter = 0;
+            $destination->density = 0;
+            $destination->galaxy = 1;
+            $destination->type = 1;
+            $destination->metal = 0;
+            $destination->crystal = 0;
+            $destination->gas = 0;
+            $destination->created_at = Carbon::now();
+            $destination->save();
+            $destination->refresh();
+        }
 
         $distance = abs($origin->orbit - $destinationOrbit);
-
-//        var_dump($origin->orbit);
-//        var_dump($destinationOrbit);
-//        var_dump($distance);
 
         $shipsInFleet = $fleet->ships()->get();
 
@@ -126,10 +153,10 @@ class ShipController extends Controller
                 ->parseAll(User::find($request->auth->id), $ship, 1, $origin->id);
 
             //drone capacity
-            if (empty($resources['properties']['non-combat']['capacity-ship']))
+            if (empty($resources['properties']['non-combat']['capacity_ship']))
                 $droneCount += $shipInFleet->quantity;
             else
-                $droneCapacity += $shipInFleet->quantity * $resources['properties']['non-combat']['capacity-ship'];
+                $droneCapacity += $shipInFleet->quantity * $resources['properties']['non-combat']['capacity_ship'];
 
             //fuel
             $fuelNeeded += $resources['properties']['non-combat']['consumption'] *
@@ -140,8 +167,6 @@ class ShipController extends Controller
             $ships[$ship->name] = [$shipInFleet->quantity, $resources['properties']['non-combat']['consumption']];
         }
 
-        //todo: check first over code
-
         if ($fuelNeeded > $origin->gas)
             return response()->json(['status' => 'error',
                 'fuelNeeded' => $fuelNeeded,
@@ -151,13 +176,13 @@ class ShipController extends Controller
         if ($fuelNeeded + $cargoMetal + $cargoCrystal + $cargoGas > $fleet->overall_capacity) {
             $res = '';
             foreach ($ships as $name => $cons) {
-                $res .= $name.' -> ('.$cons[0]. ' * '. $cons[1]. ') ';
+                $res .= $name . ' -> (' . $cons[0] . ' * ' . $cons[1] . ') ';
             }
 
             return response()->json(['status' => 'error',
                 'message' => MessagesController::i18n('capacity_not_enough_to_flight', $language),
                 'fleet' => $fleet,
-                'fuelNeededExplained' => MessagesController::i18n('ships', $language).': ' . $res . " * ".MessagesController::i18n('distance', $language).": " . $distance . " = " . $fuelNeeded,
+                'fuelNeededExplained' => MessagesController::i18n('ships', $language) . ': ' . $res . " * " . MessagesController::i18n('distance', $language) . ": " . $distance . " = " . $fuelNeeded,
                 'fuelNeeded' => $fuelNeeded,
                 'cargoLoaded' => [
                     'metal' => $fleet->metal,
@@ -167,26 +192,38 @@ class ShipController extends Controller
                 'fleetCapacity' => $fleet->overall_capacity
             ], 200);
         }
-//        if ($droneCount > $droneCapacity)
-//            return response()->json(['status' => 'error', 'message' => 'drone capacity is not enough to flight'], 200);
+        if ($droneCount > $droneCapacity)
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('drone_capacity_not_enough_to_flight', $language)], 200);
 
+        $routes = $fleet->routes();
+        foreach ($routes as $route) {
+            app(RouteController::class)->getCollisions($route);
+        }
 
-        $route = $this->makeRouteNear($fleet, $destination);
-        $this->checkCollision($fleet, $route);
+        die;
+        RouteController::add($fleet, $destination, $orderType);
 
-        return response()->json(['status' => 'success', 'message' => 'off we go'], 200);
+        return response()->json(['status' => 'success', 'message' => MessagesController::i18n('fleet_dispatched', $language)], 200);
 
     }
 
-    public function makeRouteNear(Fleet $fleet, $destinationOrbit)
+    public function makeRouteNear(Fleet $fleet, $destination)
     {
         $originOrbit = $fleet->coordinate->orbit;
-        var_dump($originOrbit);
-        die;
-        for ($currentCoordinate = $originOrbit; $currentCoordinate > $destinationOrbit; $currentCoordinate++ ){
+        $destinationOrbit = $destination->orbit;
 
+        $coordinates = [];
+
+        if ($destinationOrbit > $originOrbit) {
+            for ($i = $originOrbit; $i < $destinationOrbit + 1; $i++) {
+                $coordinates[] = $i;
+            }
+        } else {
+            for ($i = $originOrbit; $i > $destinationOrbit - 1; $i--) {
+                $coordinates[] = $i;
+            }
         }
-        return [];
+        return $coordinates;
     }
 
     public function checkCollision(Fleet $fleet, array $route)
@@ -348,7 +385,7 @@ class ShipController extends Controller
 
         $shipInOriginFleet = $fleet->ships->where('ship_id', $shipId)->first();
         if (is_null($shipInOriginFleet))
-            return response()->json(['status' => 'error', 'message' =>  MessagesController::i18n('no_ships_of_given_type_in_fleet', $language)], 200);
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('no_ships_of_given_type_in_fleet', $language)], 200);
 
         if ($shipInOriginFleet->quantity < $quantity)
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('not_enough_ships', $language)], 200);

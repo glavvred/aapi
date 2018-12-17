@@ -33,21 +33,21 @@ class Route extends Model
     ];
 
     /**
-     * Владелец маршрута
+     * Флот маршрута
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function owner()
+    public function fleet()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Fleet::class)->first();
     }
 
     /**
      * Координата входа
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return \Illuminate\Database\Eloquent\Relations\hasOne
      */
     public function origin()
     {
-        return $this->belongsTo(Planet::class);
+        return $this->hasOne(Planet::class, 'id', 'coordinate_id')->first();
     }
 
     /**
@@ -56,7 +56,7 @@ class Route extends Model
      */
     public function destination()
     {
-        return $this->belongsTo(Planet::class);
+        return $this->belongsTo(Planet::class)->first();
     }
 
     /**

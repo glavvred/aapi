@@ -16,28 +16,33 @@ class CreateRoutesTable extends Migration
         Schema::create('routes', function (Blueprint $table) {
             $table->increments('id')->unsigned();
 
-            $table->integer('owner_id')->unsigned();
-            $table->foreign('owner_id')->references('id')
-                ->on('users')->onDelete('cascade');
+            $table->integer('parent_id')->unsigned()->nullable();
+            $table->foreign('parent_id')->references('id')
+                ->on('routes')->onDelete('cascade');
+
+            $table->integer('fleet_id')->unsigned();
+            $table->foreign('fleet_id')->references('id')
+                ->on('fleets')->onDelete('cascade');
 
             $table->integer('coordinate_id')->unsigned();
             $table->foreign('coordinate_id')->references('id')
                 ->on('planets')->onDelete('cascade');
 
-            $table->integer('route_id')->unsigned()->nullable();
-            $table->foreign('route_id')->references('id')
-                ->on('routes')->onDelete('cascade');
+            $table->unique(['fleet_id', 'coordinate_id']);
 
-            $table->integer('captain_id')->unsigned()->nullable();
-            $table->foreign('captain_id')->references('id')
-                ->on('routes')->onDelete('cascade');
+            $table->integer('destination_id')->unsigned();
+            $table->foreign('destination_id')->references('id')
+                ->on('planets')->onDelete('cascade');
 
-            $table->enum('order', ['transport, defence, transfer, colonization, attack'])->nullable();
+            $table->dateTime('start_time');
+
+            $table->integer('order_id')->unsigned()->nullable();
+            $table->foreign('order_id')->references('id')
+                ->on('orders')->onDelete('cascade');
 
             $table->integer('order_param')->unsigned()->nullable();
 
             $table->timestamps();
-
         });
     }
 

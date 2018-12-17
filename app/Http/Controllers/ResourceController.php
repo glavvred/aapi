@@ -456,10 +456,9 @@ class ResourceController extends Controller
                 $constants[$key] = $value;
             }
 
+            $constants['level'] = $level;
 
             foreach ($currentFormula as $key => $resource) {
-                if ($key == 'level')
-                    $constants['level'] = $level;
 
                 $x = 0;
 
@@ -469,7 +468,6 @@ class ResourceController extends Controller
                         return eval('return $constants[\'' . $match[1] . '\'];');
                     },
                     $resource);
-
                 eval('$x = round(' . $string_processed . ");");
                 $productionResources[$key] = $x;
             };
@@ -626,7 +624,6 @@ class ResourceController extends Controller
 
         foreach ($jsonDecoded as $key => $category) { //building/tech/etc
             foreach ($category as $cKey => $item) { //building in buildings, tech in technologies etc
-
                 if (!empty($item->formula) && !empty($item->constant)) {
                     //pick most recent formula pack
                     $currentFormula = [];
@@ -652,16 +649,13 @@ class ResourceController extends Controller
                     }
 
                     foreach ($currentConstants[0] as $kkey => $currentConstant) {
-                        if ($kkey == "level")
-                            continue;
                         $cConstants[$kkey] = $currentConstant;
                     }
 
+                    $cConstants["level"] = $level;
                     $constants = array_merge($cConstants, $techBuildingBonus);
 
                     foreach ($currentFormula as $fkey => $building) {
-                        if ($fkey == 'level')
-                            continue;
 
                         $string_processed = preg_replace_callback(
                             '~\{\$(.*?)\}~si',
@@ -672,7 +666,6 @@ class ResourceController extends Controller
 
                         $x = 0;
                         eval ('$x = ' . $string_processed . ';');
-
                         $res[$key][$fkey] = $x;
                     }
                 }
