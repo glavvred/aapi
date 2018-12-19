@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Fleet;
 use App\Planet;
 use App\Route;
+use App\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -12,29 +13,6 @@ use Laravel\Lumen\Routing\Controller as BaseController;
 
 class RouteController extends BaseController
 {
-    public static function add(Fleet $fleet, $startTime = null, Planet $origin, Planet $destination, int $order, Route $parent = null, $param = '')
-    {
-        if (empty($startTime))
-            $startTime = Carbon::now()->format('Y-m-d H:i:s');
-
-        $route = new Route();
-        $route->fleet_id = $fleet->id;
-        $route->coordinate_id = $origin->id;
-        $route->destination_id = $destination->id;
-        if (!empty($parent))
-            $route->parent_id = $parent->id;
-        if (!empty($param))
-            $route->order_param = $param;
-        $route->order_id = $order;
-        $route->start_time = $startTime;
-
-        $route->save();
-        $route->refresh();
-
-        return $route;
-    }
-
-    //ladder inside one system
     public static function ladder(Request $request, Fleet $fleet, Planet $destination, int $order, $param = '')
     {
         $origin = $fleet->coordinate()->first();
@@ -92,28 +70,28 @@ class RouteController extends BaseController
             ->pluck('id');
     }
 
-    public function getCollisions($route)
+    //ladder inside one system
+
+    public static function add(Fleet $fleet, $startTime = null, Planet $origin, Planet $destination, int $order, Route $parent = null, $param = '')
     {
-//        var_dump($route->id);
+        if (empty($startTime))
+            $startTime = Carbon::now()->format('Y-m-d H:i:s');
 
-        $originSolarSystem = Planet::where('coordinateX', $route->origin()->coordinateX)
-            ->where('coordinateY', $route->origin()->coordinateY)
-            ->pluck('id');
+        $route = new Route();
+        $route->fleet_id = $fleet->id;
+        $route->coordinate_id = $origin->id;
+        $route->destination_id = $destination->id;
+        if (!empty($parent))
+            $route->parent_id = $parent->id;
+        if (!empty($param))
+            $route->order_param = $param;
+        $route->order_id = $order;
+        $route->start_time = $startTime;
 
-        $routesForeign = Route::whereIn("coordinate_id", $originSolarSystem)
-//            ->where()
-            ->get();
+        $route->save();
+        $route->refresh();
 
-        foreach ($routesForeign as $routeForeign) {
-            var_dump($routeForeign->id);
-        }
-
-        //get foreign routes over xy
-        //get least timer of route
-        //get other timers, substract least
-        //get collisions, (x,t), (x1, t1)
-        //collision radius t = 5
-
+        return $route;
     }
 
     public function getByFleet(Fleet $fleet)
@@ -126,20 +104,48 @@ class RouteController extends BaseController
 
     }
 
-    public function test()
+    public function update(Request $request)
     {
-        echo 'go';
-        declare(ticks=1) {
-            while (1) sleep(1);
+        $routesToUpdate = Route::where('start_time', '<', Carbon::now()->addSeconds(Config::get('constants.time.interplanetary'))->format('Y-m-d H:i:s'))
+            ->orderBy('start_time', 'DESC')
+            ->toSql();
+
+        var_dump($routesToUpdate);
+        var_dump(Carbon::now()->addSeconds(Config::get('constants.time.interplanetary'))->format('Y-m-d H:i:s'));
+
+        foreach ($routesToUpdate as $route) {
+            var_dump($route->destination_id);
+            $collision = $this->getCollisions($route, $route->destination());
+            if ($collision)
+                var_dump($collision);
+            else
+                echo " no collision". "\r\n";
         }
-        register_tick_function(array(&$this, 'tick'));
-        $this->tick('--start--');
     }
 
-    public function tick($str = '')
+    /**
+     * Get fleet of foreign players over given coordinate
+     * @param Route $route
+     * @param Planet $planet
+     * @return array|null
+     */
+    public function getCollisions(Route $route, Planet $planet)
     {
-        list($sec, $usec) = explode(' ', microtime());
-        printf("[%.4f] Tick.%s\n", $sec + $usec, $str);
+        $alliance = User::where('alliance_id', '!=', $route->fleet()->owner()->alliance_id)->pluck('id');
+
+        $foreignFleets = Fleet::whereNotIn('owner_id', $alliance)
+            ->where('coordinate_id', $planet->id)
+            ->get();
+
+        $collisions = [];
+        foreach ($foreignFleets as $foreignFleet) {
+//            if (($foreignFleet->order_type == 1) ||
+//                ($route->fleet()->first()->order_type == 4)) {
+//                $collisions[] = $foreignFleet->id;
+//            }
+            $collisions[] = $foreignFleet->id;
+        }
+        return !empty($collisions) ? $collisions : null;
     }
 
 

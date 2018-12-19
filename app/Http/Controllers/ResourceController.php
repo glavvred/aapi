@@ -124,7 +124,7 @@ class ResourceController extends Controller
 
         $technologyLevels = $user->technologies()
             ->wherePivot('owner_id', $userId)
-            ->get(['upgrades', 'level', 'name']);
+            ->get(['id', 'upgrades', 'level', 'name']);
 
         $formulas = $constants = $result = $actualBonusByTech = $techLevel = [];
         $levels = [
@@ -145,20 +145,22 @@ class ResourceController extends Controller
             'spy_technology' => 0,
         ];
 
-        foreach ($technologyLevels as $techId => $technologyLevel) {
+        $techLevelsById = [];
 
+        foreach ($technologyLevels as $technologyLevel) {
             $techLevel[$technologyLevel->name] = $technologyLevel->level;
-            $level = $technologyLevel->level;
+            $techLevelsById[$technologyLevel->id] = $technologyLevel->level;
 
             //get all upgrades - pick most recent - pack as an array
             $categories = json_decode($technologyLevel->upgrades);
+
             foreach ($categories as $category) {
                 foreach ($category as $key => $jsonDatum) {
                     //pick most recent constant pack
                     $currentConstants = [];
                     if (!empty($jsonDatum->constant)) {
                         foreach ($jsonDatum->constant as $levelConstant) {
-                            if ($levelConstant->level > $level)
+                            if ($levelConstant->level >= $technologyLevel->level)
                                 break;
                             else
                                 $currentConstants = $levelConstant;
@@ -169,7 +171,7 @@ class ResourceController extends Controller
                     $currentFormula = [];
                     if (!empty($jsonDatum->formula)) {
                         foreach ($jsonDatum->formula as $levelFormula) {
-                            if ($levelFormula->level > $level)
+                            if ($levelFormula->level >= $technologyLevel->level)
                                 break;
                             else
                                 $currentFormula = $levelFormula;
@@ -178,40 +180,33 @@ class ResourceController extends Controller
 
                     //each value in constants goes to corresponding variable with respective name
                     foreach ($currentConstants as $ikey => $value) {
-                        if ($ikey == 'level')
-                            $constants[$key]['constants'][$ikey] = $level;
-                        $constants[$techId][$key]['constants'][$ikey] = $value;
+                        $constants[$technologyLevel->id][$key]['constants'][$ikey] = $value;
                     }
 
                     //each value in formulas goes to corresponding variable with respective name
                     foreach ($currentFormula as $ikey => $value) {
-                        if ($ikey == 'level')
-                            $constants[$key]['constants'][$ikey] = $level;
-                        $formulas[$techId][$key]['formula'] = $value;
+                        $formulas[$technologyLevel->id][$key]['formula'] = $value;
                     }
                 }
             }
-            if (!empty($level))
-                $levels[$technologyLevel->name] = $level;
         }
 
-        foreach ($formulas as $techId => $formula) { //tech
+        foreach ($formulas as $id => $formula) {
             foreach ($formula as $key => $resource) { //formula in tech
                 $x = 0;
 
-                $const = $constants[$techId][$key]['constants'];
-                $level = $constants[$techId][$key]['constants']['level'];
+                $const = $constants[$id][$key]['constants'];
+                $const['level'] = $techLevelsById[$id];
 
                 $string_processed = preg_replace_callback(
                     '~\{\$(.*?)\}~si',
-                    function ($match) use ($const, $level) {
+                    function ($match) use ($const) {
                         return eval('return $const[\'' . $match[1] . '\'];');
                     },
                     $resource['formula']);
 
-                eval('$x = round(' . $string_processed . ");");
-
-                $actualBonusByTech[$techId][$key] = $x;
+                eval('$x = ' . $string_processed . ";");
+                $actualBonusByTech[$id][$key] = $x;
             };
         }
 
@@ -224,7 +219,7 @@ class ResourceController extends Controller
             }
         }
 
-        return array_merge($result, $techLevel, $levels);
+        return $result +  $techLevel + $levels;
     }
 
     /**
@@ -325,7 +320,7 @@ class ResourceController extends Controller
                     },
                     $resource['formula']);
 
-                eval('$x = round(' . $string_processed . ");");
+                eval('$x = ' . $string_processed . ";");
 
                 $actualBonusByBuilding[$buildingId][$key] = $x;
             }
@@ -346,7 +341,7 @@ class ResourceController extends Controller
             $sums[$key] = (isset($result[$key]) ? $result[$key] : 0) + (isset($bonus[$key]) ? $bonus[$key] : 0);
         }
 
-        return array_merge($sums, $levels, $bonuses, $buildLevels, $planetData);
+        return ($sums + $levels + $bonuses + $buildLevels + $planetData);
     }
 
     /**
@@ -406,6 +401,13 @@ class ResourceController extends Controller
                 $resource);
             eval('$x = round(' . $string_processed . ");");
             $costResources[$key] = $x;
+
+//            var_dump($key);
+//            var_dump($constants);
+//            echo '<br><br><Br>';
+//            var_dump($string_processed);
+//            echo '<br><br><Br>';
+//            var_dump($resource);
         };
 
         $costResources['time'] = round(array_sum($costResources) / 10);
@@ -663,6 +665,8 @@ class ResourceController extends Controller
                                 return eval('return $constants[\'' . $match[1] . '\'];');
                             },
                             $building);
+//                        var_dump($string_processed);
+//                        var_dump($building);
 
                         $x = 0;
                         eval ('$x = ' . $string_processed . ';');
@@ -698,7 +702,7 @@ class ResourceController extends Controller
             "defenceSmallSize" => 1,
             "defenceMiddleSize" => 1,
             "defenceLargeSize" => 1,
-            "defenceHugeSize" => 1
+            "defenceHugeSize" => 1,
         ];
 
         foreach ($jsonDecoded as $key => $category) { //combat/navigation/etc
@@ -717,12 +721,19 @@ class ResourceController extends Controller
 
                         if ($fkey == 'level')
                             continue;
+
                         $string_processed = preg_replace_callback(
                             '~\{\$(.*?)\}~si',
                             function ($match) use ($constants) {
                                 return eval('return $constants[\'' . $match[1] . '\'];');
                             },
                             $ship);
+//var_dump($constants);
+////echo '<Br><br><br>';
+//var_dump($string_processed);
+//
+//echo '<Br><br><br>';
+//var_dump($ship);
 
                         $x = 0;
                         eval ('$x = ' . $string_processed . ';');
@@ -817,6 +828,87 @@ class ResourceController extends Controller
     }
 
     /**
+     * level 1 - 100 characteristics table printout
+     * @param Request $request
+     * @param int $planetId
+     * @param int $technologyId
+     */
+    public function testManyTech(Request $request, int $planetId, int $technologyId)
+    {
+        $technology = Technology::find($technologyId);
+
+        echo '<table border="1" width="100%">';
+        for ($level = 0; $level < 101; $level++) {
+            echo '<tr><td width="40px"> level: ' . $level . '</td>';
+            echo '<td>';
+            foreach ($this->parseAll(User::find($request->auth->id), $technology, $level, $planetId) as $key => $item) {
+                echo '<table border="1" style="float: left; width: 22%;">
+                    <tr><th>' . $key . '</th><td>';
+                if (!empty($item['metal'])) {
+                    echo 'm: ' . $item['metal'] . '<br>';
+                }
+                if (!empty($item['crystal'])) {
+                    echo 'c: ' . $item['crystal'] . '<br>';
+                }
+                if (!empty($item['gas'])) {
+                    echo 'g: ' . $item['gas'] . '<br>';
+                }
+                if (!empty($item['energy'])) {
+                    echo 'e: ' . $item['energy'] . '<br>';
+                }
+                if (!empty($item['dark_matter'])) {
+                    echo 'dm: ' . $item['dark_matter'] . '<br>';
+                }
+                if (!empty($item['time'])) {
+                    echo 'time: ' . $item['time'] . '<br>';
+                }
+
+                if ($key == 'requirements') {
+                    echo '<td>';
+                    if (!empty($item['building'])) {
+                        echo 'building: ';
+                        foreach ($item['building'] as $reqKey => $req) {
+                            if ($reqKey == 'level')
+                                continue;
+                            echo $reqKey . " : " ;
+//                            var_dump($req);
+                            echo '<br> ';
+                        }
+                    }
+                    if (!empty($item['technology'])) {
+                        echo 'technology: ';
+                        foreach ($item['technology'] as $reqKey => $req) {
+                            if ($reqKey == 'level')
+                                continue;
+                            echo $reqKey . " : " ;
+//                            var_dump($req);
+                            echo '<br> ';
+                        }
+                    }
+                    echo '</td>';
+                }
+                if ($key == 'upgrades') {
+                    echo '<td>';
+                    foreach ($item as $uKey => $uItem) { //upgrade type
+                        if ($uKey == 'level')
+                            continue;
+                        echo '<b>' . $uKey . '</b><br>';
+                        foreach ($uItem as $uuKey => $uuItem) {
+                            echo $uuKey . " : " . $uuItem . '<br> ';
+                        }
+                    }
+                    echo '</td>';
+                }
+
+                echo '</tr></table>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+        echo '</table>';
+    }
+
+    /**
      * ship characteristics table printout
      * @param Request $request
      * @param int $planetId
@@ -859,7 +951,8 @@ class ResourceController extends Controller
                     foreach ($item['building'] as $reqKey => $req) {
                         if ($reqKey == 'level')
                             continue;
-                        echo $reqKey . " : " . $req . '<br> ';
+                        var_dump($req);
+                        var_dump($reqKey);
                     }
                 }
                 if (!empty($item['technology'])) {
@@ -867,7 +960,8 @@ class ResourceController extends Controller
                     foreach ($item['technology'] as $reqKey => $req) {
                         if ($reqKey == 'level')
                             continue;
-                        echo $reqKey . " : " . $req . '<br> ';
+                        var_dump($req);
+                        var_dump($reqKey);
                     }
                 }
                 echo '</td>';

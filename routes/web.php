@@ -52,6 +52,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         //test
         $router->get('test/{pid}/building/{bid}/level/{level}', 'ResourceController@test');
         $router->get('test/{pid}/building/{bid}', 'ResourceController@testMany');
+        $router->get('test/{pid}/technology/{bid}', 'ResourceController@testManyTech');
         $router->get('test/{pid}/ship/{bid}', 'ResourceController@testShip');
 
 
@@ -96,7 +97,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
         //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
-        $router->get('fleet/test', ['uses' => 'RouteController@test']);
+        $router->get('fleet/update', ['uses' => 'RouteController@update']);
 
         $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
         $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);

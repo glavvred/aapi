@@ -45,7 +45,7 @@ class ShipController extends Controller
         else
             $destinationOrbit = $destination->orbit;
 
-        var_dump($this->moveToOrbit($request, $fleetId, $destinationOrbit, 1));
+        var_dump($this->moveToOrbit($request, $fleetId, $destinationOrbit, 1, 1));
 
         die;
         $fleet = Fleet::where('coordinate_id', $planetId)
@@ -677,6 +677,7 @@ die;
             $re = [
                 'shipId' => $shipAvailable->id,
                 'name' => $shipAvailable->i18n($user->language)->name,
+                'image' => imagePath($shipAvailable),
                 'description' => $shipAvailable->i18n($user->language)->description,
                 'type' => $shipAvailable->type,
                 'race' => $shipAvailable->race,

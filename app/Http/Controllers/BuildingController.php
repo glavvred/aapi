@@ -20,7 +20,11 @@ class BuildingController extends Controller
      */
     public function __construct()
     {
-        //
+//
+    }
+
+    private function image(){
+
     }
 
     /**
@@ -44,6 +48,7 @@ class BuildingController extends Controller
         $res = [
             'id' => $building->id,
             'name' => $building->i18n($user->language)->name,
+            'image' => imagePath($building),
             'description' => $building->i18n($user->language)->description,
             'type' => $building->type,
             'race' => $building->race,
@@ -362,6 +367,7 @@ class BuildingController extends Controller
             $res[$building->id] = [
                 'id' => $building->id,
                 'name' => $building->name,
+                'image' => imagePath($building, 'building'),
                 'description' => $building->description, //->i18n($user->language)
                 'type' => $building->type,
                 'race' => $building->race,

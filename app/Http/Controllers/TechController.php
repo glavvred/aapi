@@ -63,6 +63,7 @@ class TechController extends Controller
             $res = [
                 'id' => $technology->id,
                 'name' => $technology->i18n($request->auth->language)->name,
+                'image' => imagePath($technology),
                 'description' => $technology->i18n($request->auth->language)->description,
                 'type' => $technology->type,
                 'race' => $technology->race,
@@ -126,6 +127,7 @@ class TechController extends Controller
             $res[] = [
                 'id' => $tech->id,
                 'name' => $tech->name,
+                'image' => imagePath($tech),
                 'description' => $tech->description,
                 'type' => $tech->type,
                 'race' => $tech->race,
@@ -147,6 +149,7 @@ class TechController extends Controller
             return response()->json([
                 'id' => $tech->id,
                 'name' => $tech->name,
+                'image' => imagePath($tech),
                 'description' => $tech->description,
                 'type' => $tech->type,
                 'race' => $tech->race,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Alliance;
 use App\User;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Request;
@@ -41,7 +42,9 @@ class AuthController extends BaseController
             'password' => 'required'
         ]);
         // Find the user by email
-        $user = User::where('email', $this->request->input('email'))->first();
+        $user = User::where('email', $this->request->input('email'))
+            ->first();
+        $alliance = $user->alliance()->first();
         if (!$user) {
             // You wil probably have some sort of helpers or whatever
             // to make sure that you have the same response format for
@@ -54,12 +57,13 @@ class AuthController extends BaseController
             $user->api_key = $this->jwt($user);
             $user->save();
             return response()->json(['token' => $this->jwt($user),
-                                    'id' => $user->id,
-                                    'email' => $user->email,
-                                    'name' => $user->name,
-                                    'image' => $user->userimage,
-                                    'race' => $user->race,
-                                    ], 200);
+                'id' => $user->id,
+                'email' => $user->email,
+                'name' => $user->name,
+                'alliance' => $alliance,
+                'image' => $user->userimage,
+                'race' => $user->race,
+            ], 200);
         }
         // Bad Request response
         return response()->json(['error' => 'Email or password is wrong.'], 400);
