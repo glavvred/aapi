@@ -55,6 +55,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('test/{pid}/technology/{bid}', 'ResourceController@testManyTech');
         $router->get('test/{pid}/ship/{bid}', 'ResourceController@testShip');
 
+        $router->get('alliance/test/{aid}', ['uses' => 'UserController@showAllAlliances']);
 
         //users
         $router->get('users', ['uses' => 'UserController@showAllUsers']);

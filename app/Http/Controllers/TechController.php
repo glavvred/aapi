@@ -60,6 +60,18 @@ class TechController extends Controller
             $resources = app('App\Http\Controllers\ResourceController')
                 ->parseAll($user, $technology, $level + 1, $planetId);
 
+            $upgradesArray = [];
+
+            foreach ($resources['upgrades'] as $categoryName => $category) {
+                foreach ($category as $key => $bonus) {
+                    $upgradesArray[] = [
+                        'name' => $technology->i18n($request->auth->language)->name,
+                        'current' => $resources['upgradesCurrent'][$categoryName][$key],
+                        'next' => $bonus,
+                    ];
+                }
+            }
+
             $res = [
                 'id' => $technology->id,
                 'name' => $technology->i18n($request->auth->language)->name,
@@ -74,6 +86,7 @@ class TechController extends Controller
                 ],
                 'requirements' => $resources['requirements'],
                 'upgrades' => $resources['upgrades'],
+                'upgradesArray' => $upgradesArray,
                 'startTime' => !empty($techAtUser) ? $techAtUser->pivot->startTime : null,
                 'timeToBuild' => !empty($techAtUser) ? $techAtUser->pivot->timeToBuild : null,
                 'planet_id' => !empty($techAtUser) ? $techAtUser->pivot->planet_id : null,

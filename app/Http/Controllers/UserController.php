@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Alliance;
 use App\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Validator;
 
 /**
  * Class UserController
@@ -26,12 +25,13 @@ class UserController extends Controller
     }
 
     /**
+     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function showAllUsers(Request $request)
     {
         $users = User::all();
-        foreach ($users as $user){
+        foreach ($users as $user) {
             if ($user->id != $request->auth->id)
                 $user->makeHidden(['created_at', 'updated_at', 'remember_token', 'email']);
         }
@@ -131,10 +131,41 @@ class UserController extends Controller
         if (Hash::check($request->input('password'), $user->password)) {
             $apikey = base64_encode(str_random(40));
             User::where('email', $request->input('email'))->update(['api_key' => "$apikey"]);
-                return response()->json(['status' => 'success', 'api_key' => $apikey]);
+            return response()->json(['status' => 'success', 'api_key' => $apikey]);
         } else {
             return response()->json(['status' => 'fail'], 401);
         }
+    }
+
+    public function metaAlliance(Alliance $alliance)
+    {
+        if (empty($alliance->parent_id)) {
+            $meta = Alliance::where('parent_id', $alliance->id)->get()
+                ->prepend($alliance);  //add top alliance
+        } else {
+            $top = Alliance::find($alliance->parent_id);
+            $meta = Alliance::where('parent_id', $alliance->parent_id)->get()
+                ->prepend($top);  //add top alliance
+        }
+
+        $meta->each(function($row)
+        {
+            $row->setHidden(['created_at', 'updated_at']);
+        });
+
+        return $meta;
+    }
+
+    public function showAllAlliances(){
+        $topAlliances = Alliance::where('parent_id', null)->get();
+
+        $res = [];
+
+        foreach ($topAlliances as $topAlliance) {
+            $res[] = $this->metaAlliance($topAlliance);
+        }
+
+        return $res;
     }
 }
 

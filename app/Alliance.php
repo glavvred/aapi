@@ -15,7 +15,7 @@ class Alliance extends Model
      * @var array
      */
     protected $fillable = [
-        'name', 'type', 'description',
+        'name', 'type', 'description', 'image',
         'parent_id', 'requirements', 'leader_id',
     ];
 
@@ -32,7 +32,12 @@ class Alliance extends Model
      */
     public function parent_id()
     {
-        return $this->belongsTo('App\Alliance');
+        return $this->belongsTo(Alliance::class);
+    }
+
+    public function users()
+    {
+        return $this->hasMany(User::class, 'alliance_id', 'id');
     }
 
 }

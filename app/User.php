@@ -69,7 +69,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      */
     public function alliance()
     {
-        return $this->hasOne('App\Alliance', 'id', 'alliance_id');
+        return $this->hasOne(Alliance::class, 'id', 'alliance_id');
     }
 
     /**

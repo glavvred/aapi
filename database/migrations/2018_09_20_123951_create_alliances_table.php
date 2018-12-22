@@ -22,6 +22,7 @@ class CreateAlliancesTable extends Migration
 
             $table->smallInteger('type')->nullable(); //пригодится )
             $table->string('name')->unique();
+            $table->string('image')->unique();
             $table->string('description')->nullable();
             $table->string('requirements');
 

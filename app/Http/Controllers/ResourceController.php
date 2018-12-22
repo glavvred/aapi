@@ -95,6 +95,11 @@ class ResourceController extends Controller
         //upgrades
         $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus);
 
+        if ($level <= 0)
+            $upgradesCurrent = $upgrades ;
+        else
+            $upgradesCurrent = $this->parseUpgrades($upg, $level - 1 , $techBuildingBonus);
+
         //ship properties
         $properties = $this->parseProperties($props, $techBuildingBonus);
 
@@ -102,6 +107,7 @@ class ResourceController extends Controller
             'production' => $production,
             'requirements' => $requirements,
             'upgrades' => $upgrades,
+            'upgradesCurrent' => $upgradesCurrent,
             'techAndBuilding' => $techBuildingBonus,
         ];
 
@@ -401,16 +407,10 @@ class ResourceController extends Controller
                 $resource);
             eval('$x = round(' . $string_processed . ");");
             $costResources[$key] = $x;
-
-//            var_dump($key);
-//            var_dump($constants);
-//            echo '<br><br><Br>';
-//            var_dump($string_processed);
-//            echo '<br><br><Br>';
-//            var_dump($resource);
         };
 
         $costResources['time'] = round(array_sum($costResources) / 10);
+        unset($costResources['level']);
 
         return $costResources;
     }
@@ -476,6 +476,8 @@ class ResourceController extends Controller
 
             $productionResources['time'] = round(array_sum($productionResources) / 10);
         }
+        unset($productionResources['level']);
+
         return $productionResources;
     }
 
@@ -587,7 +589,7 @@ class ResourceController extends Controller
 
             foreach ($buildings as $building) {
                 $res['building'][$building->id] = [
-                    "name" => $building->name,
+                    "name" => $building->i18n($user->language)->name,
                     "need" => $requirements['building'][$building->name],
                     "have" => $building->pivot->level,
                 ];
@@ -602,7 +604,7 @@ class ResourceController extends Controller
 
             foreach ($technologies as $technology) {
                 $res['technology'][$technology->id] = [
-                    "name" => $technology->name,
+                    "name" => $technology->i18n($user->language)->name,
                     "need" => $requirements['technology'][$technology->name],
                     "have" => $technology->pivot->level,
                 ];
@@ -665,17 +667,15 @@ class ResourceController extends Controller
                                 return eval('return $constants[\'' . $match[1] . '\'];');
                             },
                             $building);
-//                        var_dump($string_processed);
-//                        var_dump($building);
 
                         $x = 0;
-                        eval ('$x = ' . $string_processed . ';');
+                        eval ('$x = round(' . $string_processed . ', 2);');
                         $res[$key][$fkey] = $x;
                     }
                 }
             }
+            unset ($res[$key]['level']);
         }
-
         return $res;
     }
 

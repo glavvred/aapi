@@ -391,7 +391,7 @@ class BuildingController extends Controller
                 $res[$building->id]['startTime'] = $building->pivot_startTime;
                 $res[$building->id]['timeToBuild'] = $building->pivot_timeToBuild;
                 $res[$building->id]['destroying'] = $building->pivot_destroying;
-                $res[$building->id]['updated_at'] = $building->pivot_updated_at;
+//                $res[$building->id]['updated_at'] = $building->pivot_updated_at;
             }
         }
 

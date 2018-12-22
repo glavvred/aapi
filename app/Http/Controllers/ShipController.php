@@ -688,10 +688,13 @@ die;
                 'properties' => $shipProperties['properties'],
             ];
 
+//            var_dump($ref['ships']);
+
             if (!empty($ref['ships'])) {
                 if ($ref['ships']['shipId'] == $shipAvailable->id) {
                     $re['startTime'] = $ref['ships']['shipStartTime'];
-//                $re['timeToBuild'] = $ref['ships']['shipOneTimeToBuild'] * $ref['ships']['shipQuantityQued'];
+                    $re['timeToBuild'] = $ref['ships']['shipOneTimeToBuild'] * $ref['ships']['shipQuantityQued'];
+                    $re['shipQuantityQued'] = $ref['ships']['shipQuantityQued'];
                     $re['updated_at'] = Carbon::now()->format('Y-m-d H:i:s');
                 }
             }
