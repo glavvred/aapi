@@ -84,6 +84,20 @@ class Fleet extends Model
         return $this->hasMany(FleetShip::class, 'fleet_id');
     }
 
+
+    /**
+     * Приказ флота
+     * @return Model|null|object|static
+     */
+    public function order()
+    {
+        $order = $this->hasOne(FleetOrder::class, 'id', 'order_type')->first();
+        if (!empty($order))
+            return $order;
+        else
+            return new FleetOrder(['name' => 'empty', 'type' => 0]);
+    }
+
 }
 
 

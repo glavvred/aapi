@@ -202,7 +202,7 @@ class ShipController extends Controller
 //
 //        die;
         RouteController::ladder($request, $fleet, $destination, $orderType);
-die;
+
         return response()->json(['status' => 'success', 'message' => MessagesController::i18n('fleet_dispatched', $language)], 200);
 
     }
@@ -687,8 +687,6 @@ die;
                 'upgrades' => $shipProperties['upgrades'],
                 'properties' => $shipProperties['properties'],
             ];
-
-//            var_dump($ref['ships']);
 
             if (!empty($ref['ships'])) {
                 if ($ref['ships']['shipId'] == $shipAvailable->id) {

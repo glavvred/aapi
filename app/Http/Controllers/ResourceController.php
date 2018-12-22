@@ -8,7 +8,6 @@ use App\Ship;
 use App\Technology;
 use App\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\App;
 use Psr\Log\InvalidArgumentException;
 
 
@@ -87,18 +86,18 @@ class ResourceController extends Controller
         //production
         $production = $this->parseProduction($res, $level, $techBuildingBonus);
 
+
         //requirements
         $requirementsParsed = $this->parseRequirements($req, $level, $techBuildingBonus);
-
         $requirements = $this->checkRequirements($user, $planetId, $instanceToCheck, $requirementsParsed);
 
         //upgrades
         $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus);
 
         if ($level <= 0)
-            $upgradesCurrent = $upgrades ;
+            $upgradesCurrent = $upgrades;
         else
-            $upgradesCurrent = $this->parseUpgrades($upg, $level - 1 , $techBuildingBonus);
+            $upgradesCurrent = $this->parseUpgrades($upg, $level - 1, $techBuildingBonus);
 
         //ship properties
         $properties = $this->parseProperties($props, $techBuildingBonus);
@@ -225,7 +224,7 @@ class ResourceController extends Controller
             }
         }
 
-        return $result +  $techLevel + $levels;
+        return $result + $techLevel + $levels;
     }
 
     /**
@@ -492,24 +491,27 @@ class ResourceController extends Controller
     private function parseRequirements($jsonDecoded, int $level, $techBuildingBonus)
     {
 
-        $res = $currentConstants = $currentFormula = [];
+        $res = [];
         $cConstants['level'] = $level;
 
         foreach ($jsonDecoded as $key => $category) { //building/tech/etc
+            $currentFormula = [];
             if (!empty($category->formula)) {
                 //pick most recent formula pack
-                $currentFormula = [];
                 foreach ($category->formula as $levelFormula) {
                     if ($levelFormula->level > $level)
                         break;
-                    else
+                    else {
+                        if ($levelFormula == "level")
+                            continue;
                         $currentFormula = $levelFormula;
+                    }
                 }
             }
 
+            $currentConstants = [];
             if (!empty($category->constant)) {
                 //pick most recent constant pack
-                $currentConstants = [];
                 foreach ($category->constant as $levelConstant) {
                     if ($levelConstant->level > $level)
                         break;
@@ -521,12 +523,12 @@ class ResourceController extends Controller
 
                     }
                 }
-            }
 
-            foreach ($currentConstants[0] as $kkey => $currentConstant) {
-                if ($kkey == "level")
-                    continue;
-                $cConstants[$kkey] = $currentConstant;
+                foreach ($currentConstants[0] as $kkey => $currentConstant) {
+                    if ($kkey == "level")
+                        continue;
+                    $cConstants[$kkey] = $currentConstant;
+                }
             }
 
             $constants = array_merge($cConstants, $techBuildingBonus);
@@ -544,7 +546,6 @@ class ResourceController extends Controller
 
                 $x = 0;
                 eval ('$x = ' . $string_processed . ';');
-
                 $res[$key][$fkey] = $x;
             }
         }
@@ -583,30 +584,49 @@ class ResourceController extends Controller
         }
 
         if (!empty($requirements['building'])) {
-            $buildings = $planet->buildings()
+            $buildings = Building::leftJoin('planet_building', function ($join) use ($planet) {
+                $join
+                    ->on('buildings.id', '=', 'planet_building.building_id')
+                    ->where(function ($query) use ($planet) {
+                        $query->where('planet_id', '=', $planet->id)
+                            ->orWhereNull('planet_id');
+                    });
+            })
                 ->whereIn('name', array_keys($requirements['building']))
+                ->where('race', $planet->owner()->race)
                 ->get();
 
             foreach ($buildings as $building) {
                 $res['building'][$building->id] = [
                     "name" => $building->i18n($user->language)->name,
                     "need" => $requirements['building'][$building->name],
-                    "have" => $building->pivot->level,
+                    "have" => $building->level ? $building->level : 0,
                 ];
             }
         }
 
 
         if (!empty($requirements['technology'])) {
-            $technologies = $user->technologies()
+
+            $technologies = Technology::leftJoin('user_technologies', function ($join) use ($user) {
+                $join
+                    ->on('technologies.id', '=', 'user_technologies.technology_id')
+                    ->where(function ($query) use ($user) {
+                        $query->where('owner_id', '=', $user->id)
+                            ->orWhereNull('owner_id');
+                    });
+            })
                 ->whereIn('name', array_keys($requirements['technology']))
+                ->where('race', $planet->owner()->race)
                 ->get();
+
+
 
             foreach ($technologies as $technology) {
                 $res['technology'][$technology->id] = [
                     "name" => $technology->i18n($user->language)->name,
                     "need" => $requirements['technology'][$technology->name],
-                    "have" => $technology->pivot->level,
+                    "have" => $technology->level ? $technology->level : 0 ,
                 ];
             }
         }
@@ -621,7 +641,7 @@ class ResourceController extends Controller
      * @param int $level
      * @return array
      */
-    private  function parseUpgrades($jsonDecoded, int $level, $techBuildingBonus)
+    private function parseUpgrades($jsonDecoded, int $level, $techBuildingBonus)
     {
         $res = [];
         $cConstants['level'] = $level;
@@ -789,8 +809,7 @@ class ResourceController extends Controller
                         foreach ($item['building'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " ;
-                            var_dump($req);
+                            echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
                             echo '<br> ';
                         }
                     }
@@ -799,8 +818,7 @@ class ResourceController extends Controller
                         foreach ($item['technology'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " ;
-                            var_dump($req);
+                            echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
                             echo '<br> ';
                         }
                     }
@@ -870,7 +888,7 @@ class ResourceController extends Controller
                         foreach ($item['building'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " ;
+                            echo $reqKey . " : ";
 //                            var_dump($req);
                             echo '<br> ';
                         }
@@ -880,7 +898,7 @@ class ResourceController extends Controller
                         foreach ($item['technology'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : " ;
+                            echo $reqKey . " : ";
 //                            var_dump($req);
                             echo '<br> ';
                         }

@@ -106,12 +106,12 @@ class RouteController extends BaseController
 
     public function update(Request $request)
     {
-        $routesToUpdate = Route::where('start_time', '<', Carbon::now()->addSeconds(Config::get('constants.time.interplanetary'))->format('Y-m-d H:i:s'))
+        $routesToUpdate = Route::where('start_time', '<',
+            Carbon::now()
+                ->addSeconds(Config::get('constants.time.interplanetary'))
+                ->format('Y-m-d H:i:s'))
             ->orderBy('start_time', 'DESC')
-            ->toSql();
-
-        var_dump($routesToUpdate);
-        var_dump(Carbon::now()->addSeconds(Config::get('constants.time.interplanetary'))->format('Y-m-d H:i:s'));
+            ->get();
 
         foreach ($routesToUpdate as $route) {
             var_dump($route->destination_id);
@@ -119,8 +119,10 @@ class RouteController extends BaseController
             if ($collision)
                 var_dump($collision);
             else
-                echo " no collision". "\r\n";
+                echo " no collision" . "\r\n";
         }
+
+        die;
     }
 
     /**
@@ -131,14 +133,24 @@ class RouteController extends BaseController
      */
     public function getCollisions(Route $route, Planet $planet)
     {
-        $alliance = User::where('alliance_id', '!=', $route->fleet()->owner()->alliance_id)->pluck('id');
+        $myAlliance = $route->fleet()->owner()->alliance()->first();
+        $allianceGroup = app('App\Http\Controllers\UserController')
+            ->metaAlliance($myAlliance);
 
-        $foreignFleets = Fleet::whereNotIn('owner_id', $alliance)
+        $allianceIds = [];
+
+        foreach ($allianceGroup as $alliance) {
+            $allianceIds[] = $alliance->id;
+        }
+
+        $foreignFleets = Fleet::whereNotIn('owner_id', $allianceIds)
             ->where('coordinate_id', $planet->id)
             ->get();
 
         $collisions = [];
         foreach ($foreignFleets as $foreignFleet) {
+            //foreign fleets with certain battle orders (type == 2)
+            var_dump($foreignFleet->order()->name);
 //            if (($foreignFleet->order_type == 1) ||
 //                ($route->fleet()->first()->order_type == 4)) {
 //                $collisions[] = $foreignFleet->id;
