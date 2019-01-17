@@ -15,6 +15,7 @@ class Alliance extends Model
      * @var array
      */
     protected $fillable = [
+        'id',
         'name', 'type', 'description', 'image',
         'parent_id', 'requirements', 'leader_id',
     ];

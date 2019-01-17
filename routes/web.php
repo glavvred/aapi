@@ -45,6 +45,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
     //no auth
     $router->post('users', ['uses' => 'UserController@create']);
+    $router->get('users/lazy_register', 'UserController@lazyRegister');
 
     //auth + scope
     $router->group(['middleware' => ['jwt.auth', 'astrality.scope']], function () use ($router) {
@@ -82,6 +83,7 @@ $router->group(['prefix' => 'api'], function () use ($router) {
 
         //shortcuts
         $router->get('planets', ['uses' => 'PlanetController@showMyPlanets']);
+        $router->post('planets/{id}/rename', ['uses' => 'PlanetController@rename']);
 
         $router->get('planets/{id}', ['uses' => 'PlanetController@showOnePlanet']);
         $router->get('planets/{id}/buildings', ['uses' => 'BuildingController@showAllBuildings']);
@@ -95,20 +97,28 @@ $router->group(['prefix' => 'api'], function () use ($router) {
         $router->get('planets/{id}/technologies', ['uses' => 'TechController@showTechByPlanet']);
         $router->get('planets/{id}/technologies/{tid}', ['uses' => 'TechController@showOneTech']);
         $router->put('planets/{id}/technologies/{tid}/upgrade', ['uses' => 'TechController@upgradeTech']);
+        $router->put('planets/{id}/technologies/{tid}/cancel', ['uses' => 'TechController@cancelBuilding']);
+
+        //ships
+        $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
+        $router->put('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);
+        $router->put('planets/{planetId}/ships/{sid}/cancel', ['uses' => 'ShipController@cancelBuilding']);
+
+        //defence
+        $router->get('planets/{id}/defences', ['uses' => 'DefenceController@showDefenceListByPlanet']);
+        $router->put('planets/{id}/defences/{sid}/build/{quantity}', ['uses' => 'DefenceController@buildDefence']);
+        $router->put('planets/{planetId}/defences/{sid}/cancel', ['uses' => 'DefenceController@cancelBuilding']);
 
         //fleet
         $router->get('fleet', ['uses' => 'ShipController@showMyFleet']);
         $router->get('fleet/update', ['uses' => 'RouteController@update']);
-
-        $router->get('planets/{id}/ships', ['uses' => 'ShipController@showShipListByPlanet']);
-        $router->get('planets/{id}/ships/{sid}/build/{quantity}', ['uses' => 'ShipController@buildShip']);
         $router->get('planets/{id}/fleet/{fid}/test', ['uses' => 'ShipController@loadFleet']);
         $router->get('planets/{id}/fleet', ['uses' => 'ShipController@showFleetAtPlanet']);
         $router->get('planets/{id}/fleet/{fid}', ['uses' => 'ShipController@showOneFleet']);
 
         //fleet actions
-        $router->post('planets/{id}/fleet/{fleetId}/cargo', ['uses' => 'ShipController@transferResourcesToFleet']);
-        $router->post('planets/{id}/fleet/{fleetId}/transfer', ['uses' => 'ShipController@transferShipsToFleet']);
+        $router->put('planets/{id}/fleet/{fleetId}/cargo', ['uses' => 'ShipController@transferResourcesToFleet']);
+        $router->put('planets/{id}/fleet/{fleetId}/transfer', ['uses' => 'ShipController@transferShipsToFleet']);
 
         $router->get('planets/{id}/fleet/{fleetId}/move/{destination}/order/{order}', ['uses' => 'ShipController@moveToOrbit']);
         $router->put('planets/{id}/fleet/{fid}/build', ['uses' => 'ShipController@build']);

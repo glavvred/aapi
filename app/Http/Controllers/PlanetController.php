@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Comments;
 use App\Planet;
 use App\User;
+use Carbon\Carbon;
+use Faker\Factory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 
 /**
  * Class PlanetController
@@ -23,6 +26,143 @@ class PlanetController extends Controller
         //
     }
 
+    public function chooseUnoccupied($xc, $yc)
+    {
+        $planet = Planet::where('coordinateX', $xc)
+            ->where('coordinateY', $yc)
+            ->whereNull('owner_id')
+            ->where('diameter', '!=', 0)
+            ->inRandomOrder()
+            ->limit(1)
+            ->first();
+
+        return $planet;
+
+    }
+
+    /**
+     * Seed empty solar system
+     * @param $xc
+     * @param $yc
+     */
+    public function seedSolarSystem($xc, $yc)
+    {
+        //seedOrbits first
+        for ($orbit = Config::get('constants.galaxy.dimensions.orbit.min');
+             $orbit < Config::get('constants.galaxy.dimensions.orbit.min_inhabited');
+             $orbit++) {
+            $this->newOrbit($xc, $yc, $orbit);
+        }
+
+        //seedPlanets
+        for ($orbit = Config::get('constants.galaxy.dimensions.orbit.min_inhabited');
+             $orbit <= Config::get('constants.galaxy.dimensions.orbit.max_inhabited');
+             $orbit++) {
+
+            $faker = Factory::create();
+            if ($faker->boolean(75))
+                $this->newPlanet($xc, $yc, $orbit);
+            else
+                $this->newOrbit($xc, $yc, $orbit);
+        }
+
+        //seedOrbits last
+        for ($orbit > Config::get('constants.galaxy.dimensions.orbit.max_inhabited');
+             $orbit <= Config::get('constants.galaxy.dimensions.orbit.max');
+             $orbit++) {
+            $this->newOrbit($xc, $yc, $orbit);
+        }
+
+    }
+
+    /**
+     * New orbit coordinate create
+     * @param $xc
+     * @param $yc
+     * @param $orbit
+     * @return mixed
+     */
+    public function newOrbit($xc, $yc, $orbit)
+    {
+        $planet = Planet::where('coordinateX', $xc)
+            ->where('coordinateY', $yc)
+            ->where('orbit', $orbit)
+            ->firstOrNew([
+                'coordinateX' => $xc,
+                'coordinateY' => $yc,
+                'orbit' => $orbit,
+            ]);
+
+        if (empty($planet->name)) {
+            $planet->name = $xc . ':' . $yc . ':' . $orbit;
+            $planet->slots = 0;
+            $planet->temperature = 0;
+            $planet->diameter = 0;
+            $planet->density = 0;
+            $planet->galaxy = 1;
+            $planet->type = 0;
+            $planet->metal = 0;
+            $planet->crystal = 0;
+            $planet->gas = 0;
+            $planet->created_at = Carbon::now();
+            $planet->save();
+            $planet->refresh();
+        }
+
+        return $planet;
+    }
+
+    /**
+     * New planet coordinate create
+     * @param $xc
+     * @param $yc
+     * @param $orbit
+     * @return mixed
+     */
+    public function newPlanet($xc, $yc, $orbit)
+    {
+        $planet = Planet::where('coordinateX', $xc)
+            ->where('coordinateY', $yc)
+            ->where('orbit', $orbit)
+            ->firstOrNew([
+                'coordinateX' => $xc,
+                'coordinateY' => $yc,
+                'orbit' => $orbit,
+            ]);
+
+        if (empty($planet->name)) {
+            $faker = Factory::create();
+
+            $planet->name = $faker->colorName . ' ' . $faker->randomNumber(3);
+            $planet->slots = rand(
+                Config::get('constants.galaxy.planet.slots.min'),
+                Config::get('constants.galaxy.planet.slots.max')
+            );
+            $planet->temperature = rand(
+                Config::get('constants.galaxy.planet.temperature.min'),
+                Config::get('constants.galaxy.planet.temperature.max')
+            );
+            $planet->diameter = rand(
+                Config::get('constants.galaxy.planet.diameter.min'),
+                Config::get('constants.galaxy.planet.diameter.max')
+            );
+            $planet->density = rand(
+                Config::get('constants.galaxy.planet.density.min'),
+                Config::get('constants.galaxy.planet.density.max')
+            );
+            $planet->galaxy = 1;
+            $planet->type = 1;
+            $planet->metal = 0;
+            $planet->crystal = 0;
+            $planet->gas = 0;
+            $planet->created_at = Carbon::now();
+            $planet->save();
+            $planet->refresh();
+        }
+
+        return $planet;
+    }
+
     /**
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -38,6 +178,7 @@ class PlanetController extends Controller
     }
 
     /**
+     * Show my planets
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -45,12 +186,14 @@ class PlanetController extends Controller
     {
         $planets = Planet::with('buildings')
             ->where('owner_id', $request->auth->id)
+            ->orderBy('id', 'ASC')
             ->get();
         $res = [];
 
         foreach ($planets as $planet) {
             $refreshed = app(BuildingController::class)->refreshPlanet($request, $planet);
-            $ships = (!empty($refreshed['ships'])) ?  $refreshed['ships'] : ['shipStartTime' => 0, 'shipQuantityQued' => 0, 'shipOneTimeToBuild' => 0];
+            $ships = (!empty($refreshed['ships'])) ? $refreshed['ships'] : ['shipStartTime' => 0, 'shipQuantityQued' => 0, 'shipOneTimeToBuild' => 0];
+            $defence = (!empty($refreshed['defences'])) ? $refreshed['defences'] : ['defenceStartTime' => 0, 'defenceQuantityQued' => 0, 'defenceOneTimeToBuild' => 0];
 
             $plan = [
                 "id" => $planet['id'],
@@ -84,7 +227,13 @@ class PlanetController extends Controller
                         "shipQued" => $ships['shipQuantityQued'],
                         "timeToBuild" => $ships['shipQuantityQued'] * $ships['shipOneTimeToBuild'],
                     ],
+                    "defences" => [
+                        "startTime" => $defence['defenceStartTime'],
+                        "defenceQued" => $defence['defenceQuantityQued'],
+                        "timeToBuild" => $defence['defenceQuantityQued'] * $defence['defenceOneTimeToBuild'],
+                    ],
                 ],
+                "profiler" => $refreshed['profile'],
             ];
 
             foreach ($planet['buildings'] as $building) {
@@ -115,7 +264,6 @@ class PlanetController extends Controller
         $planet = Planet::where('id', $planetId)->first();
         $planet->makeHidden(['buildings']);
 
-
         if (!empty($planet->owner_id)) {
             //моя планета
             if ($planet->owner_id == $request->auth->id) {
@@ -145,8 +293,7 @@ class PlanetController extends Controller
             ->get(['id', 'owner_id', 'comment', 'description', 'share_with_alliance', 'created_at', 'updated_at']);
 
         //my guild comments - shared
-        $comments['alliance'] = Comments::where(
-            'coordinateX', $planet->coordinateX)
+        $comments['alliance'] = Comments::where('coordinateX', $planet->coordinateX)
             ->where('coordinateY', $planet->coordinateY)
             ->where('orbit', $planet->orbit)
             ->where('share_with_alliance', 1)
@@ -184,23 +331,42 @@ class PlanetController extends Controller
     }
 
     /**
+     * Rename planet
+     *
      * @param Request $request
-     * @param $id
+     * @param $pid
      * @return \Illuminate\Http\JsonResponse
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function update(Request $request, $id)
+    public function rename(Request $request, $pid)
     {
         $this->validate($request, [
-            'name' => 'filled',
-            'location' => 'filled',
-            'type' => 'filled'
+            'name' => 'filled'
         ]);
-        $planet = Planet::find($id);
+
+        $planet = Planet::find($pid);
+
+        if (empty($planet))
+            return response()->json(['status' => 'error',
+                'message' => MessagesController::i18n('planet_not_found', $request->auth->language),
+            ], 403);
+
+
+        if ($planet->owner()->id != $request->auth->id)
+            return response()->json(['status' => 'error',
+                'message' => MessagesController::i18n('planet_not_yours', $request->auth->language),
+            ], 403);
+
+
         if ($planet->fill($request->all())->save()) {
-            return response()->json(['status' => 'success']);
+            return response()->json(['status' => 'success',
+                'message' => MessagesController::i18n('planet_renamed', $request->auth->language),
+            ], 200);
         }
-        return response()->json(['status' => 'fail']);
+
+        return response()->json(['status' => 'error',
+            'message' => 'something is not right, planet controller 218',
+        ], 200);
     }
 
     /**

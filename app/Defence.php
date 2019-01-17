@@ -3,11 +3,13 @@
 namespace App;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 
-class Building extends Model
+class Defence extends Model
 {
 
+    /**
+     * @var bool
+     */
     public $timestamps = false;
 
     /**
@@ -17,11 +19,7 @@ class Building extends Model
      */
     protected $fillable = [
         'name', 'type', 'race', 'description',
-        'cost_metal', 'cost_crystal', 'cost_gas',
-        'dark_matter_cost', 'cost_time',
-        'resources', 'requirements', 'upgrades',
-        'metal_ph', 'crystal_ph', 'gas_ph', 'energy_ph',
-
+        'resource', 'requirements', 'upgrades', 'properties',
     ];
 
     /**
@@ -33,41 +31,37 @@ class Building extends Model
     ];
 
     /**
-     * @return mixed
+     * Корабли в составе флота
+     * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function requires()
+    public function fleetShips()
     {
-        return $this->requirements;
-    }
-
-    public function planet()
-    {
-        DB::table('planet_building')
-            ->where('building_id', $this->id)
-            ->first();
-
+        return $this->belongsToMany('App\FleetShip',
+            'fleet_ships',
+            'ship_id',
+            'fleet_id')
+            ->withPivot('quantity');
     }
 
     /**
      * Перевод
-     * @throws \Exception
      * @param string $language
+     * @throws \Exception
      * @return Model|null|object|static
      */
     public function i18n(string $language)
     {
         $translated = $this
-            ->hasOne(BuildingLang::class, 'building_name', 'name')
+            ->hasMany(DefenceLang::class, 'defences_name', 'name')
             ->where('language', $language)
             ->first();
 
         if (empty($translated)) {
-            throw  new \Exception('no translation found for building_name:' . $this->name . ' and language:' . $language);
+            throw  new \Exception('no translation found for defence_name:'.$this->name. ' and language:'.$language);
         }
 
         return $translated;
     }
-
 }
 
 

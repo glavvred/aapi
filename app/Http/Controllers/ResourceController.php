@@ -8,8 +8,9 @@ use App\Ship;
 use App\Technology;
 use App\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Psr\Log\InvalidArgumentException;
-
 
 /**
  * Class ResourcesController
@@ -53,7 +54,6 @@ class ResourceController extends Controller
      */
     public function parseAll(User $user, object $instanceToCheck, int $level = 1, int $planetId)
     {
-
         $res = json_decode($instanceToCheck->resources);
         $req = json_decode($instanceToCheck->requirements);
         $upg = json_decode($instanceToCheck->upgrades);
@@ -79,30 +79,38 @@ class ResourceController extends Controller
             $techBuildingBonus['command_center'] = 0;
         if (!isset($techBuildingBonus['research_center']))
             $techBuildingBonus['research_center'] = 0;
+        if (!isset($techBuildingBonus['shipyard']))
+            $techBuildingBonus['shipyard'] = 0;
+        if (!isset($techBuildingBonus['laboratory']))
+            $techBuildingBonus['laboratory'] = 0;
+
 
         //cost
         $cost = $this->parseCost($res, $level, $techBuildingBonus);
 
+        //storage
+        $storage = $this->parseStorage($res, $level, $techBuildingBonus);
+
         //production
         $production = $this->parseProduction($res, $level, $techBuildingBonus);
-
 
         //requirements
         $requirementsParsed = $this->parseRequirements($req, $level, $techBuildingBonus);
         $requirements = $this->checkRequirements($user, $planetId, $instanceToCheck, $requirementsParsed);
 
         //upgrades
-        $upgrades = $this->parseUpgrades($upg, $level, $techBuildingBonus);
+        $upgrades = $this->parseUpgrades($user, $instanceToCheck, $level, $techBuildingBonus);
 
         if ($level <= 0)
             $upgradesCurrent = $upgrades;
         else
-            $upgradesCurrent = $this->parseUpgrades($upg, $level - 1, $techBuildingBonus);
+            $upgradesCurrent = $this->parseUpgrades($user, $instanceToCheck, $level - 1, $techBuildingBonus);
 
         //ship properties
         $properties = $this->parseProperties($props, $techBuildingBonus);
 
         $res = ['cost' => $cost,
+            'storage' => $storage,
             'production' => $production,
             'requirements' => $requirements,
             'upgrades' => $upgrades,
@@ -210,7 +218,7 @@ class ResourceController extends Controller
                     },
                     $resource['formula']);
 
-                eval('$x = ' . $string_processed . ";");
+                eval('$x = round(' . $string_processed . ",2);");
                 $actualBonusByTech[$id][$key] = $x;
             };
         }
@@ -240,8 +248,16 @@ class ResourceController extends Controller
         $planetData['temperature'] = $planet->temperature;
         $planetData['density'] = $planet->density;
 
-        $buildingLevels = $planet->buildings()
-            ->wherePivot('planet_id', $planetId)
+        $buildingLevels = Building::leftJoin('planet_building',
+            function ($join) use ($planet) {
+                $join
+                    ->on('buildings.id', '=', 'planet_building.building_id')
+                    ->where(function ($query) use ($planet) {
+                        $query->where('planet_id', '=', $planet->id)
+                            ->orWhereNull('planet_id');
+                    });
+            })
+            ->where('race', $planet->owner()->race)
             ->get(['upgrades', 'level', 'name']);
 
         $formulas = $constants = $result = $sums = $buildLevels = [];
@@ -316,17 +332,21 @@ class ResourceController extends Controller
                 $const = $constants[$buildingId][$key]['constants'];
                 $const = array_merge($const, $bonuses);
 
+                if (empty($const['level'])) {
+                    $const['level'] = 0;
+                }
+
                 $level = $const['level'];
 
                 $string_processed = preg_replace_callback(
                     '~\{\$(.*?)\}~si',
                     function ($match) use ($const, $level) {
                         return eval('return $const[\'' . $match[1] . '\'];');
+
                     },
                     $resource['formula']);
 
-                eval('$x = ' . $string_processed . ";");
-
+                eval('$x = round(' . $string_processed . ",2);");
                 $actualBonusByBuilding[$buildingId][$key] = $x;
             }
         };
@@ -346,7 +366,7 @@ class ResourceController extends Controller
             $sums[$key] = (isset($result[$key]) ? $result[$key] : 0) + (isset($bonus[$key]) ? $bonus[$key] : 0);
         }
 
-        return ($sums + $levels + $bonuses + $buildLevels + $planetData);
+        return array_merge($sums, $levels, $bonuses, $buildLevels, $planetData);
     }
 
     /**
@@ -404,14 +424,85 @@ class ResourceController extends Controller
                     return eval('return $constants[\'' . $match[1] . '\'];');
                 },
                 $resource);
-            eval('$x = round(' . $string_processed . ");");
+
+            eval('$x = round(' . $string_processed . ", 2);");
+
+            if (($key == 'time') && ($x < 1))
+                $x = 1;
+
+//            var_dump($key);
+//            var_dump($string_processed);
+//            var_dump($resource);
+//            echo '<Br><Br>';
             $costResources[$key] = $x;
         };
 
-        $costResources['time'] = round(array_sum($costResources) / 10);
+
         unset($costResources['level']);
 
         return $costResources;
+    }
+
+    /**
+     * Parse storage helper
+     *
+     * @param $jsonDecoded
+     * @param array $constants calculated bonuses from technologies and buildings with levels
+     * @param int $level
+     * @return array
+     */
+    private function parseStorage($jsonDecoded, int $level, $constants)
+    {
+        //pick most recent constant pack
+        $currentConstants = $currentFormula = [];
+        $storageResources = [
+            'metal' => 0,
+            'crystal' => 0,
+            'gas' => 0,
+        ];
+
+        $constants = array_merge($constants, $storageResources);
+        if (!empty($jsonDecoded->storage)) {
+            foreach ($jsonDecoded->storage->constant as $levelConstant) {
+                if ($levelConstant->level > $level)
+                    break;
+                else
+                    $currentConstants = $levelConstant;
+            }
+
+            //pick most recent formula pack
+            foreach ($jsonDecoded->storage->formula as $levelFormula) {
+                if (!isset($levelFormula->level))
+                    $levelFormula->level = 1;
+                if ($levelFormula->level > $level)
+                    break;
+                else
+                    $currentFormula = $levelFormula;
+            }
+
+            //each value in constants goes to corresponding variable with respective name
+            foreach ($currentConstants as $key => $value) {
+                $constants[$key] = $value;
+            }
+            $constants['level'] = $level;
+
+            foreach ($currentFormula as $key => $resource) {
+                $x = 0;
+
+                $string_processed = preg_replace_callback(
+                    '~\{\$(.*?)\}~si',
+                    function ($match) use ($constants) {
+                        return eval('return $constants[\'' . $match[1] . '\'];');
+                    },
+                    $resource);
+                eval('$x = round(' . $string_processed . ");");
+                $storageResources[$key] = $x;
+            };
+
+            unset($storageResources['level']);
+        }
+
+        return $storageResources;
     }
 
     /**
@@ -545,7 +636,7 @@ class ResourceController extends Controller
                     $building);
 
                 $x = 0;
-                eval ('$x = ' . $string_processed . ';');
+                eval ('$x = round(' . $string_processed . ',2);');
                 $res[$key][$fkey] = $x;
             }
         }
@@ -594,10 +685,12 @@ class ResourceController extends Controller
             })
                 ->whereIn('name', array_keys($requirements['building']))
                 ->where('race', $planet->owner()->race)
+                ->select('buildings.id AS bid', 'name', 'level')
                 ->get();
 
             foreach ($buildings as $building) {
-                $res['building'][$building->id] = [
+                $res['building'][$building->name] = [
+                    "id" => $building->bid,
                     "name" => $building->i18n($user->language)->name,
                     "need" => $requirements['building'][$building->name],
                     "have" => $building->level ? $building->level : 0,
@@ -607,7 +700,6 @@ class ResourceController extends Controller
 
 
         if (!empty($requirements['technology'])) {
-
             $technologies = Technology::leftJoin('user_technologies', function ($join) use ($user) {
                 $join
                     ->on('technologies.id', '=', 'user_technologies.technology_id')
@@ -618,15 +710,15 @@ class ResourceController extends Controller
             })
                 ->whereIn('name', array_keys($requirements['technology']))
                 ->where('race', $planet->owner()->race)
+                ->select('technologies.id AS tid', 'name', 'level')
                 ->get();
-
-
 
             foreach ($technologies as $technology) {
                 $res['technology'][$technology->id] = [
+                    "id" => $technology->tid,
                     "name" => $technology->i18n($user->language)->name,
                     "need" => $requirements['technology'][$technology->name],
-                    "have" => $technology->level ? $technology->level : 0 ,
+                    "have" => $technology->level ? $technology->level : 0,
                 ];
             }
         }
@@ -637,66 +729,80 @@ class ResourceController extends Controller
      * Parse Upgrades helper
      *
      * @param array $techBuildingBonus
-     * @param $jsonDecoded
+     * @param object $instance
      * @param int $level
      * @return array
      */
-    private function parseUpgrades($jsonDecoded, int $level, $techBuildingBonus)
+    private function parseUpgrades($user, $instance, int $level, $techBuildingBonus)
     {
-        $res = [];
-        $cConstants['level'] = $level;
+        $jsonDecoded = json_decode($instance->upgrades);
+        if (!empty($jsonDecoded)) {
 
-        foreach ($jsonDecoded as $key => $category) { //building/tech/etc
-            foreach ($category as $cKey => $item) { //building in buildings, tech in technologies etc
-                if (!empty($item->formula) && !empty($item->constant)) {
-                    //pick most recent formula pack
-                    $currentFormula = [];
-                    foreach ($item->formula as $levelFormula) {
-                        if ($levelFormula->level > $level)
-                            break;
-                        else
-                            $currentFormula = $levelFormula;
-                    }
+            $res = [];
+            $cConstants['level'] = $level;
 
-                    //pick most recent constant pack
-                    $currentConstants = [];
-                    foreach ($item->constant as $levelConstant) {
-                        if ($levelConstant->level > $level)
-                            break;
-                        else {
-                            if ($levelConstant == "level")
-                                continue;
+            foreach ($jsonDecoded as $key => $category) { //building/tech/etc
+                foreach ($category as $cKey => $item) { //building in buildings, tech in technologies etc
+                    if (!empty($item->formula) && !empty($item->constant)) {
+                        //pick most recent formula pack
+                        $currentFormula = [];
+                        foreach ($item->formula as $levelFormula) {
+                            if ($levelFormula->level > $level)
+                                break;
+                            else
+                                $currentFormula = $levelFormula;
+                        }
 
-                            $currentConstants[] = $levelConstant;
+                        //pick most recent constant pack
+                        $currentConstants = [];
+                        foreach ($item->constant as $levelConstant) {
+                            if ($levelConstant->level > $level)
+                                break;
+                            else {
+                                if ($levelConstant == "level")
+                                    continue;
 
+                                $currentConstants[] = $levelConstant;
+
+                            }
+                        }
+
+                        foreach ($currentConstants[0] as $kkey => $currentConstant) {
+                            $cConstants[$kkey] = $currentConstant;
+                        }
+
+                        $cConstants["level"] = $level;
+                        $constants = array_merge($cConstants, $techBuildingBonus);
+
+                        foreach ($currentFormula as $fkey => $building) {
+
+                            $string_processed = preg_replace_callback(
+                                '~\{\$(.*?)\}~si',
+                                function ($match) use ($constants) {
+                                    return eval('return $constants[\'' . $match[1] . '\'];');
+                                },
+                                $building);
+
+                            $x = 0;
+                            eval ('$x = round(' . $string_processed . ', 2);');
+
+                            if ($fkey != 'level') {
+                                if ($key == 'planet') {
+//                                    var_dump(get_class($instance));
+//                                    var_dump($instance);
+//                                    var_dump($instance->i18n($user->language)->name);
+                                } elseif ($key == 'user') {
+                                    //var_dump($$instance->i18n($user->language)->name);
+                                }
+                            }
+                            $res[$key][$fkey] = $x;
                         }
                     }
-
-                    foreach ($currentConstants[0] as $kkey => $currentConstant) {
-                        $cConstants[$kkey] = $currentConstant;
-                    }
-
-                    $cConstants["level"] = $level;
-                    $constants = array_merge($cConstants, $techBuildingBonus);
-
-                    foreach ($currentFormula as $fkey => $building) {
-
-                        $string_processed = preg_replace_callback(
-                            '~\{\$(.*?)\}~si',
-                            function ($match) use ($constants) {
-                                return eval('return $constants[\'' . $match[1] . '\'];');
-                            },
-                            $building);
-
-                        $x = 0;
-                        eval ('$x = round(' . $string_processed . ', 2);');
-                        $res[$key][$fkey] = $x;
-                    }
                 }
+                unset ($res[$key]['level']);
             }
-            unset ($res[$key]['level']);
+            return $res;
         }
-        return $res;
     }
 
     /**
@@ -744,20 +850,17 @@ class ResourceController extends Controller
 
                         $string_processed = preg_replace_callback(
                             '~\{\$(.*?)\}~si',
-                            function ($match) use ($constants) {
-                                return eval('return $constants[\'' . $match[1] . '\'];');
+                            function ($match) use ($constants, $techBuildingBonus) {
+                                //todo try-catch
+                                if (!isset($constants[$match[1]])) {
+                                    return 0;
+                                } else
+                                    return
+                                        eval('return $constants[\'' . $match[1] . '\'];');
                             },
                             $ship);
-//var_dump($constants);
-////echo '<Br><br><br>';
-//var_dump($string_processed);
-//
-//echo '<Br><br><br>';
-//var_dump($ship);
-
                         $x = 0;
                         eval ('$x = ' . $string_processed . ';');
-
                         $res[$key][$fkey] = $x;
                     }
                 }
@@ -814,7 +917,7 @@ class ResourceController extends Controller
                         }
                     }
                     if (!empty($item['technology'])) {
-                        echo 'technology: ';
+                        echo 'technology : ';
                         foreach ($item['technology'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
@@ -888,8 +991,7 @@ class ResourceController extends Controller
                         foreach ($item['building'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : ";
-//                            var_dump($req);
+                            echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
                             echo '<br> ';
                         }
                     }
@@ -898,8 +1000,7 @@ class ResourceController extends Controller
                         foreach ($item['technology'] as $reqKey => $req) {
                             if ($reqKey == 'level')
                                 continue;
-                            echo $reqKey . " : ";
-//                            var_dump($req);
+                            echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
                             echo '<br> ';
                         }
                     }
@@ -969,8 +1070,8 @@ class ResourceController extends Controller
                     foreach ($item['building'] as $reqKey => $req) {
                         if ($reqKey == 'level')
                             continue;
-                        var_dump($req);
-                        var_dump($reqKey);
+                        echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
+                        echo '<br>';
                     }
                 }
                 if (!empty($item['technology'])) {
@@ -978,8 +1079,8 @@ class ResourceController extends Controller
                     foreach ($item['technology'] as $reqKey => $req) {
                         if ($reqKey == 'level')
                             continue;
-                        var_dump($req);
-                        var_dump($reqKey);
+                        echo $req['name'] . ' : ' . $req['have'] . ' / ' . $req['need'];
+                        echo '<br>';
                     }
                 }
                 echo '</td>';
@@ -1343,6 +1444,48 @@ class ResourceController extends Controller
         ];
 
         return response()->json($res, 200);
+    }
+
+    /**
+     * Add given amount of resources from given planet
+     * @uses money constant
+     *
+     * @param Planet $planet
+     * @param array $resources
+     * @param bool $isPaid
+     * @return array
+     */
+    public function refund(Planet $planet, array $resources, bool $isPaid = false)
+    {
+        if (empty($resources['metal']))
+            $resources['metal'] = 0;
+        if (empty($resources['crystal']))
+            $resources['crystal'] = 0;
+        if (empty($resources['gas']))
+            $resources['gas'] = 0;
+
+        $resourceRefundRate = Config::get('constants.time.interplanetary');
+
+        try {
+            DB::beginTransaction();
+            $planet = DB::table('planets')->where('id', $planet->id)->lockForUpdate()->first();
+            DB::table('planets')->where('id', $planet->id)
+                ->update([
+                    'metal' => $planet->metal + $resources['metal'] * $resourceRefundRate,
+                    'crystal' => $planet->crystal + $resources['crystal'] * $resourceRefundRate,
+                    'gas' => $planet->gas + $resources['gas'] * $resourceRefundRate
+                ]);
+            DB::commit();
+        } catch (\Exception $exception) {
+            DB::rollBack();
+            var_dump($exception->getMessage());
+        }
+
+        return [
+            'metal' => $resources['metal'] * $resourceRefundRate,
+            'crystal' => $resources['crystal'] * $resourceRefundRate,
+            'gas' => $resources['gas'] * $resourceRefundRate
+        ];
     }
 
 }

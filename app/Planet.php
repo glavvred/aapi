@@ -3,6 +3,7 @@
 namespace App;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Planet extends Model
 {
@@ -15,7 +16,7 @@ class Planet extends Model
      * @var array
      */
     protected $fillable = [
-        'name', 'owner_id', 'type', 'classType',
+        'id', 'name', 'owner_id', 'type', 'classType',
         'slots', 'temperature', 'diameter', 'density',
         'coordinateX', 'coordinateY', 'orbit',
         'metal', 'crystal', 'gas',
@@ -57,6 +58,20 @@ class Planet extends Model
     {
         return $this->belongsToMany(Ship::class, 'planet_ship')
             ->withPivot('quantity', 'quantityQued', 'startTime', 'timeToBuildOne', 'passedFromLastOne', 'updated_at');
+    }
+
+    /**
+     * Оборона на планете
+     *
+     */
+    public function defencesBuildingNow()
+    {
+        $defencesAtPlanet = DB::table('defences')
+            ->join('planet_defence', 'planet_defence.defence_id', '=', 'defences.id')
+            ->where('planet_id', $this->id)
+            ->get(['*', 'defences.id as did']);
+
+        return $defencesAtPlanet;
     }
 
     /**

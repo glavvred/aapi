@@ -84,6 +84,15 @@ class Fleet extends Model
         return $this->hasMany(FleetShip::class, 'fleet_id');
     }
 
+    /**
+     * Оборона в составе флота
+     * @return \Illuminate\Database\Eloquent\Relations\hasMany
+     */
+    public function defences()
+    {
+        return $this->hasMany(FleetDefence::class, 'fleet_id');
+    }
+
 
     /**
      * Приказ флота
@@ -95,7 +104,8 @@ class Fleet extends Model
         if (!empty($order))
             return $order;
         else
-            return new FleetOrder(['name' => 'empty', 'type' => 0]);
+            return
+                new FleetOrder(['name' => 'empty', 'type' => 0]);
     }
 
 }

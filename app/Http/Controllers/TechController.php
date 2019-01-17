@@ -65,7 +65,8 @@ class TechController extends Controller
             foreach ($resources['upgrades'] as $categoryName => $category) {
                 foreach ($category as $key => $bonus) {
                     $upgradesArray[] = [
-                        'name' => $technology->i18n($request->auth->language)->name,
+                        'name_i18n' => $technology->i18n($request->auth->language)->name,
+                        'name' => $technology->name,
                         'current' => $resources['upgradesCurrent'][$categoryName][$key],
                         'next' => $bonus,
                     ];
@@ -85,8 +86,8 @@ class TechController extends Controller
                     'production' => $resources['production'],
                 ],
                 'requirements' => $resources['requirements'],
-                'upgrades' => $resources['upgrades'],
-                'upgradesArray' => $upgradesArray,
+                //'upgrades' => $resources['upgrades'],
+                'upgrades' => $upgradesArray,
                 'startTime' => !empty($techAtUser) ? $techAtUser->pivot->startTime : null,
                 'timeToBuild' => !empty($techAtUser) ? $techAtUser->pivot->timeToBuild : null,
                 'planet_id' => !empty($techAtUser) ? $techAtUser->pivot->planet_id : null,
@@ -139,7 +140,7 @@ class TechController extends Controller
         if (!empty($techAtUser)) {
             $res[] = [
                 'id' => $tech->id,
-                'name' => $tech->name,
+                'name' => $tech->i18n($request->auth->language)->name,
                 'image' => imagePath($tech),
                 'description' => $tech->description,
                 'type' => $tech->type,
@@ -161,7 +162,7 @@ class TechController extends Controller
         } else //level 0 tech
             return response()->json([
                 'id' => $tech->id,
-                'name' => $tech->name,
+                'name' => $tech->i18n($request->auth->language)->name,
                 'image' => imagePath($tech),
                 'description' => $tech->description,
                 'type' => $tech->type,
@@ -229,6 +230,8 @@ class TechController extends Controller
         app('App\Http\Controllers\BuildingController')->buy($planet, $resourcesAtLevel['cost']);
 
         $timeToBuild = $resourcesAtLevel['cost']['time'];
+        if ($timeToBuild < 1)
+            $timeToBuild = 1;
 
         $user->technologies()->updateExistingPivot($techAtUser->id, [
             'level' => $level,
@@ -240,6 +243,66 @@ class TechController extends Controller
         return response()->json(['status' => 'success',
             'level' => $level,
             'time' => $timeToBuild], 200);
+    }
+
+    /**
+     * Cancel technology building request
+     *
+     * @uses i18n
+     * @param Request $request
+     * @param int $tid
+     * @param int $id
+     * @param bool $isPaid
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function cancelBuilding(Request $request, int $tid, int $id, bool $isPaid = false)
+    {
+        $language = $request->auth->language;
+
+        $planet = Planet::find($id);
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+
+        $user = User::find($request->auth->id);
+        $owner = User::find($planet->owner_id);
+
+        if ($user != $owner)
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
+
+        $technology = Technology::find($tid);
+        $userTechnology = $user->technologies()->find($tid);
+
+        //que check
+        if (empty($ref['techStartTime']) || empty($ref['techQued']))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('tech_que_empty', $language)], 403);
+
+        //resources refund
+        $resources = app('App\Http\Controllers\ResourceController')
+            ->parseAll($owner, $userTechnology, 1, $id);
+
+        $fullCost = [
+            'metal' => $resources['cost']['metal'],
+            'crystal' => $resources['cost']['crystal'],
+            'gas' => $resources['cost']['gas'],
+        ];
+
+        $refund = app('App\Http\Controllers\ResourceController')
+            ->refund($planet, $fullCost, $isPaid);
+
+        $user->technologies()->detach($userTechnology->id);
+
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
+
+        return response()->json(['status' => 'success',
+            'message' => MessagesController::i18n('tech_removed_from_que', $language),
+            'refunded' => [
+                'metal' => $refund['metal'],
+                'crystal' => $refund['crystal'],
+                'gas' => $refund['gas'],
+            ],
+        ], 200);
     }
 
 }

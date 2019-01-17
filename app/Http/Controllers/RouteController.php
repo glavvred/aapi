@@ -18,7 +18,9 @@ class RouteController extends BaseController
         $origin = $fleet->coordinate()->first();
 
         if (($origin->coordinateX != $destination->coordinateX) || ($origin->coordinateX != $destination->coordinateX))
-            MessagesController::i18n('planets_system_differ', $request->auth->language);
+            return response()->json(['status' => 'error',
+                'message' =>  MessagesController::i18n('planets_system_differ', $request->auth->language),
+                'time_remain' => $ref['buildingTimeRemain']], 403);
 
         // todo                   ==
         $reverse = $origin->orbit > $destination->orbit;
@@ -115,9 +117,12 @@ class RouteController extends BaseController
 
         foreach ($routesToUpdate as $route) {
             var_dump($route->destination_id);
-            $collision = $this->getCollisions($route, $route->destination());
-            if ($collision)
-                var_dump($collision);
+            $collisionFleet = $this->getCollisions($route, $route->destination());
+            if ($collisionFleet) {
+                foreach ($collisionFleet as $fleet) {
+                    $this->autoBattle($route->fleet(), $fleet);
+                }
+            }
             else
                 echo " no collision" . "\r\n";
         }
@@ -135,29 +140,53 @@ class RouteController extends BaseController
     {
         $myAlliance = $route->fleet()->owner()->alliance()->first();
         $allianceGroup = app('App\Http\Controllers\UserController')
-            ->metaAlliance($myAlliance);
+            ->metaAlliance($myAlliance, true);
+        $myAlliance = User::whereIn('alliance_id', $allianceGroup)->pluck('id')->toArray();
 
-        $allianceIds = [];
-
-        foreach ($allianceGroup as $alliance) {
-            $allianceIds[] = $alliance->id;
-        }
-
-        $foreignFleets = Fleet::whereNotIn('owner_id', $allianceIds)
+        $foreignFleets = Fleet::whereNotIn('owner_id', $myAlliance)
             ->where('coordinate_id', $planet->id)
             ->get();
 
         $collisions = [];
         foreach ($foreignFleets as $foreignFleet) {
             //foreign fleets with certain battle orders (type == 2)
-            var_dump($foreignFleet->order()->name);
-//            if (($foreignFleet->order_type == 1) ||
-//                ($route->fleet()->first()->order_type == 4)) {
-//                $collisions[] = $foreignFleet->id;
-//            }
-            $collisions[] = $foreignFleet->id;
+
+            //инициатива атакующего флота
+            if ($route->fleet()->first()->order_type == 2) {
+                $collisions[] = $foreignFleet;
+            }
+
+            //инициатива защитного флота
+            if ($foreignFleet->order()->type == 2) {
+                $collisions[] = $foreignFleet;
+            }
+
         }
         return !empty($collisions) ? $collisions : null;
+    }
+
+    public function autoBattle(Fleet $attackerFleet, Fleet $defenderFleet)
+    {
+        echo "\r\n";
+        echo "\r\n";
+        echo "\r\n";
+
+        echo 'attacker: '."\r\n";
+        echo 'user: '. $attackerFleet->owner()."\r\n";
+
+        foreach ($attackerFleet->ships()->get() as $fleetShip) {
+            echo $fleetShip->contains()->first()->name. ' : '. $fleetShip->quantity."\r\n";
+        }
+        echo "\r\n";
+        echo 'defender: '."\r\n";
+        echo 'user: '. $defenderFleet->owner()."\r\n";
+        foreach ($defenderFleet->ships()->get() as $fleetShip) {
+            echo $fleetShip->contains()->first()->name. ' : '. $fleetShip->quantity."\r\n";
+        }
+
+        echo "\r\n";
+        echo "\r\n";
+        echo "\r\n";
     }
 
 

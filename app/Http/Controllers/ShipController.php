@@ -550,13 +550,80 @@ class ShipController extends Controller
         $planetShip->startTime = Carbon::now()->format('Y-m-d H:i:s');
         $planetShip->created_at = Carbon::now()->format('Y-m-d H:i:s');
         $planetShip->updated_at = Carbon::now()->format('Y-m-d H:i:s');
-        $planetShip->timeToBuildOne = $timeToBuild;
+        $planetShip->timeToBuildOne = $shipDetails['cost']['time'];
         $planetShip->save();
 
         return response()->json(['status' => 'success',
             'startTime' => Carbon::now()->format('Y-m-d H:i:s'),
             'quantity' => $quantity,
-            'fullShipTimeRemain' => $timeToBuild,
+            'timeToBuild' => $timeToBuild,
+        ], 200);
+    }
+
+    /**
+     * Cancel ship building request
+     *
+     * @uses i18n
+     * @param Request $request
+     * @param int $sid
+     * @param int $planetId
+     * @param bool $isPaid
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function cancelBuilding(Request $request, int $sid, int $planetId, bool $isPaid = false)
+    {
+        $language = $request->auth->language;
+
+        $planet = Planet::find($planetId);
+        if (empty($planet))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+
+        $user = User::find($request->auth->id);
+        $owner = User::find($planet->owner_id);
+
+        if ($user != $owner)
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
+        $ref = $ref['ships'];
+
+        $ship = Ship::find($sid);
+        $planetShip = $planet->ships()->find($sid);
+
+        //que check
+        if (empty($ref['shipStartTime']) || empty($planetShip->pivot->quantityQued))
+            return response()->json(['status' => 'error', 'message' => MessagesController::i18n('ship_que_empty', $language)], 403);
+
+        //resources refund
+        $resources = app('App\Http\Controllers\ResourceController')
+            ->parseAll($owner, $planetShip, 1, $planetId);
+
+        $fullCost = [
+            'metal' => $resources['cost']['metal'] * $planetShip->pivot->quantityQued,
+            'crystal' => $resources['cost']['crystal'] * $planetShip->pivot->quantityQued,
+            'gas' => $resources['cost']['gas'] * $planetShip->pivot->quantityQued,
+        ];
+
+        $refund = app('App\Http\Controllers\ResourceController')
+            ->refund($planet, $fullCost, $isPaid);
+
+        $planet->ships()->updateExistingPivot($planetShip->id, [
+            'quantity' => null,
+            'quantityQued' => null,
+            'startTime' => null,
+            'timeToBuildOne' => null,
+            'passedFromLastOne' => null,
+            'updated_at' => Carbon::now()->format('Y-m-d H:i:s')]);
+
+        $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
+
+        return response()->json(['status' => 'success',
+            'message' => MessagesController::i18n('ship_removed_from_que', $language),
+            'refunded' => [
+                'metal' => $refund['metal'],
+                'crystal' => $refund['crystal'],
+                'gas' => $refund['gas'],
+            ],
         ], 200);
     }
 
@@ -583,7 +650,7 @@ class ShipController extends Controller
                     //ships in fleet props
                     $res[$fleet->coordinate_id][$fleet->id]['ships'][] = [
                         'shipId' => $item->id,
-                        'name' => $item->i18n()->name,
+                        'name' => $item->i18n($request->auth->language)->name,
                         'quantity' => $ship->quantity,
                     ];
                 }
@@ -674,6 +741,36 @@ class ShipController extends Controller
             $shipProperties = app('App\Http\Controllers\ResourceController')
                 ->parseAll($user, $shipAvailable, 1, $planetId);
 
+            $upgradesArray = [];
+            foreach ($shipProperties['upgrades'] as $categoryName => $category) {
+                foreach ($category as $key => $bonus) {
+                    $upgradesArray[] = [
+                        'name' => $key,
+                        'type' => $categoryName,
+                        'name_i18n' => MessagesController::skills_i18n($key, $request->auth->language),
+                        'current' => $shipProperties['upgrades'][$categoryName][$key]
+                    ];
+                }
+            }
+
+            $propertiesArray = [];
+            foreach ($shipProperties['properties'] as $categoryName => $category) {
+                foreach ($category as $key => $bonus) {
+//                    $propertiesArray[] = [
+//                        'name' => $key,
+//                        'type' => $categoryName,
+//                        'name_i18n' => MessagesController::skills_i18n($key, $request->auth->language),
+//                        'current' => $shipProperties['properties'][$categoryName][$key]
+//                    ];
+                    $propertiesArray['combat'][MessagesController::skills_i18n($key, $request->auth->language)] = [
+                         $shipProperties['properties'][$categoryName][$key]
+                    ];
+                }
+            }
+
+            //todo front refactor
+
+
             $re = [
                 'shipId' => $shipAvailable->id,
                 'name' => $shipAvailable->i18n($user->language)->name,
@@ -685,7 +782,7 @@ class ShipController extends Controller
                 'production' => $shipProperties['production'],
                 'requirements' => $shipProperties['requirements'],
                 'upgrades' => $shipProperties['upgrades'],
-                'properties' => $shipProperties['properties'],
+                'properties' => $propertiesArray,
             ];
 
             if (!empty($ref['ships'])) {

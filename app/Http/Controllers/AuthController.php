@@ -44,7 +44,6 @@ class AuthController extends BaseController
         // Find the user by email
         $user = User::where('email', $this->request->input('email'))
             ->first();
-        $alliance = $user->alliance()->first();
         if (!$user) {
             // You wil probably have some sort of helpers or whatever
             // to make sure that you have the same response format for
@@ -52,6 +51,9 @@ class AuthController extends BaseController
             // below respose for now.
             return response()->json(['error' => 'Email does not exist.'], 400);
         }
+
+        $alliance = $user->alliance()->first();
+
         // Verify the password and generate the token
         if (Hash::check($this->request->input('password'), $user->password)) {
             $user->api_key = $this->jwt($user);
