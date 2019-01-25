@@ -23,7 +23,8 @@ $router->get('/db-test', function () {
     }
 });
 
-$router->group(['prefix' => 'api'], function () use ($router) {
+//'prefix' => 'api'
+$router->group([], function () use ($router) {
 
     //test
     $router->get('test/resources/', 'ResourceController@defaultJsonResources');
