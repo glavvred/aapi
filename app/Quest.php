@@ -2,40 +2,50 @@
 
 namespace App;
 
-use http\Env\Request;
-
 class Quest
 {
 
-    public function get(Request $request)
+    public $timestamps = true;
+    public $daily;
+    public $storyline;
+    public $tutorial;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+
+
+    protected $fillable = [
+        'name', 'type', 'race', 'is_hidden', 'parent_id',
+        'requirements', 'reward_resources', 'reward_items', 'reward_units',
+    ];
+
+    /**
+     * The attributes excluded from the model's JSON form.
+     *
+     * @var array
+     */
+    protected $hidden = [
+    ];
+
+    /**
+     * Предыдущий квест по цепочке
+     * @return mixed
+     */
+    public function parent()
     {
-        $user = User::find($request->auth->id)->first();
-
-        $quests = $this->getQuests($user);
-
-        $res = [
-            'storyline' => [
-                'available' => $quests->storyline->available,
-                'done' => $quests->storyline->done,
-            ],
-            'daily' => [
-                'available' => $quests->daily->available,
-                'done' => $quests->daily->done,
-            ],
-            'tutorial' => [
-                'available' => $quests->tutorial->available,
-                'done' => $quests->tutorial->done,
-            ],
-        ];
-
-        return response()->json(['status' => 'success', 'quests' => $res], 200);
+        return $this->belongsTo(Quest::class, 'parent_id');
     }
 
-    public function getQuests(User $user)
+    /**
+     * Следующий квест по цепочке
+     * @return mixed
+     */
+    public function children()
     {
-
-
-        return [];
+        return $this->hasMany(Quest::class, 'parent_id');
     }
 
 }

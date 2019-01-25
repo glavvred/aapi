@@ -15,13 +15,12 @@ class CreateQuestsTable extends Migration
     {
         Schema::create('quests', function (Blueprint $table) {
             $table->increments('id')->unsigned();
+            $table->integer('id')->unsigned();
             $table->string('name');
-            $table->enum('language', ['russian', 'english']);
-            $table->unique(['name', 'language']);
-            $table->string('text');
+            $table->tinyInteger('race');
+            $table->unique(['name', 'race']);
             $table->boolean('is_hidden');
 
-            $table->tinyInteger('race');
             $table->enum('type', ['storyline', 'daily', 'tutorial']);
 
             //requires
@@ -44,6 +43,6 @@ class CreateQuestsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('messages');
+        Schema::dropIfExists('quests');
     }
 }
