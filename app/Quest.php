@@ -19,7 +19,8 @@ class Quest
 
     protected $fillable = [
         'name', 'type', 'race', 'is_hidden', 'parent_id',
-        'requirements', 'reward_resources', 'reward_items', 'reward_units',
+        'requirements', 'objectives',
+        'reward_resources', 'reward_items', 'reward_units',
     ];
 
     /**
