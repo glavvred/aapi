@@ -26,7 +26,4 @@ class Comments extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

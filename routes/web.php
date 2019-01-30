@@ -41,7 +41,6 @@ $router->group([], function () use ($router) {
         $router->group(['middleware' => 'jwt.auth'], function () use ($router) {
             $router->get('logout', 'AuthController@logout');
         });
-
     });
 
     //no auth
@@ -130,8 +129,5 @@ $router->group([], function () use ($router) {
 
         //governors
         $router->get('planets/{id}/governors', ['uses' => 'GovernorController@showGovernorAtPlanet']);
-
     });
-
-
 });

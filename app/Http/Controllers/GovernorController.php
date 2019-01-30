@@ -34,6 +34,4 @@ class GovernorController extends Controller
 
         return $governors;
     }
-
-
 }

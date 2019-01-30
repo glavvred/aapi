@@ -38,8 +38,9 @@ class TechController extends Controller
         $user = User::find($request->auth->id);
         $planet = Planet::find($planetId);
 
-        if ($planet->owner_id != $user->id)
+        if ($planet->owner_id != $user->id) {
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
+        }
 
 
         $ref = app('App\Http\Controllers\BuildingController')
@@ -98,7 +99,6 @@ class TechController extends Controller
         }
 
         return response()->json($result, 200);
-
     }
 
     /**
@@ -125,8 +125,9 @@ class TechController extends Controller
         $planet = Planet::find($planetId);
         $tech = Technology::find($techId);
 
-        if ($planet->owner_id != $user->id)
+        if ($planet->owner_id != $user->id) {
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
+        }
 
         //race check skipped - cannot be not your race
 
@@ -135,7 +136,7 @@ class TechController extends Controller
         $level = !empty($techAtUser) ? $techAtUser->pivot->level : 0;
 
         $resources = app('App\Http\Controllers\ResourceController')
-            ->parseAll( $user, $tech, $level + 1, $planetId);
+            ->parseAll($user, $tech, $level + 1, $planetId);
 
         if (!empty($techAtUser)) {
             $res[] = [
@@ -159,7 +160,7 @@ class TechController extends Controller
                 'updated_at' => Carbon::parse($techAtUser->pivot->updated_at)->format('Y-m-d H:i:s'),
             ];
             return response()->json($res, 200);
-        } else //level 0 tech
+        } else { //level 0 tech
             return response()->json([
                 'id' => $tech->id,
                 'name' => $tech->i18n($request->auth->language)->name,
@@ -175,6 +176,7 @@ class TechController extends Controller
                 'upgrades' => $resources['upgrades'],
                 'level' => 0,
             ], 200);
+        }
     }
 
     /**
@@ -188,8 +190,9 @@ class TechController extends Controller
         $user = User::find($request->auth->id);
         $planet = Planet::find($id);
 
-        if ($planet->owner_id != $user->id)
+        if ($planet->owner_id != $user->id) {
             return response()->json(['status' => 'error', 'message' => 'not your planet'], 403);
+        }
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
 
@@ -199,12 +202,13 @@ class TechController extends Controller
             return response()->json(['status' => 'error', 'message' => 'race mismatch'], 403);
         }
         //slots check
-        if (!empty($ref['techQued']))
+        if (!empty($ref['techQued'])) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'no slots available',
                 'time_remain' => $ref['techQueTimeRemain']
             ], 403); //
+        }
 
         //если нет у юзера - создали с уровнем 0
         $techAtUser = $user->technologies()->where('technology_id', $tid)->first();
@@ -224,14 +228,16 @@ class TechController extends Controller
             ->parseAll($user, $tech, $level + 1, $planet->id);
 
 
-        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
+        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resourcesAtLevel['cost'])) {
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
+        }
 
         app('App\Http\Controllers\BuildingController')->buy($planet, $resourcesAtLevel['cost']);
 
         $timeToBuild = $resourcesAtLevel['cost']['time'];
-        if ($timeToBuild < 1)
+        if ($timeToBuild < 1) {
             $timeToBuild = 1;
+        }
 
         $user->technologies()->updateExistingPivot($techAtUser->id, [
             'level' => $level,
@@ -260,14 +266,16 @@ class TechController extends Controller
         $language = $request->auth->language;
 
         $planet = Planet::find($id);
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        }
 
         $user = User::find($request->auth->id);
         $owner = User::find($planet->owner_id);
 
-        if ($user != $owner)
+        if ($user != $owner) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+        }
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
 
@@ -275,8 +283,9 @@ class TechController extends Controller
         $userTechnology = $user->technologies()->find($tid);
 
         //que check
-        if (empty($ref['techStartTime']) || empty($ref['techQued']))
+        if (empty($ref['techStartTime']) || empty($ref['techQued'])) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('tech_que_empty', $language)], 403);
+        }
 
         //resources refund
         $resources = app('App\Http\Controllers\ResourceController')
@@ -304,5 +313,4 @@ class TechController extends Controller
             ],
         ], 200);
     }
-
 }

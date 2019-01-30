@@ -25,5 +25,3 @@ class Universe extends Model
     protected $hidden = [
     ];
 }
-
-

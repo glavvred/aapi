@@ -72,8 +72,8 @@ class QuestController extends Controller
         return $quests;
     }
 
-    public function daily(){
-
+    public function daily()
+    {
     }
 
     /**
@@ -89,10 +89,10 @@ class QuestController extends Controller
             ->where('language', $language)
             ->first();
 
-        if (empty($messages))
+        if (empty($messages)) {
             return 'Error is not yet translated. please tell administration: '. $questName. ' with language: '.$language;
+        }
 
         return $messages->text;
     }
-
 }

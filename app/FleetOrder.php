@@ -38,7 +38,4 @@ class FleetOrder extends Model
     {
         return $this->belongsTo(Fleet::class)->first();
     }
-
 }
-
-

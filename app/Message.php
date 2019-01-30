@@ -25,8 +25,4 @@ class Message extends Model
      */
     protected $hidden = [
     ];
-
-
 }
-
-

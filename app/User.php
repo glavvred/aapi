@@ -2,56 +2,50 @@
 
 namespace App;
 
-use Illuminate\Auth\Authenticatable;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Laravel\Lumen\Auth\Authorizable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
-use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-class User extends Model implements AuthenticatableContract, AuthorizableContract
+class User extends Authenticatable
 {
-    use Authenticatable, Authorizable;
+    use Notifiable;
 
+    public $scope;
     /**
      * The attributes that are mass assignable.
      *
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password','userimage', 'race', 'alliance_id', 'language'
+        'name', 'email', 'password', 'userimage', 'race', 'alliance_id', 'language'
     ];
-
     /**
-     * The attributes excluded from the model's JSON form.
+     * The attributes that should be hidden for arrays.
      *
      * @var array
      */
     protected $hidden = [
-        'password', 'api_key',
+        'password', 'remember_token', 'api_key',
     ];
 
-    public $scope;
-
     public function planets()
-
     {
-        return $this->hasMany(Planet::class,'owner_id');
+        return $this->hasMany(Planet::class, 'owner_id');
     }
 
     /**
      * Технологии юзера
      * @return BelongsToMany
      */
-    public function technologies() : BelongsToMany
+    public function technologies(): BelongsToMany
     {
-        return $this->belongsToMany(Technology::class,'user_technologies', 'owner_id')
+        return $this->belongsToMany(Technology::class, 'user_technologies', 'owner_id')
             ->withPivot(['level',
                 'startTime',
                 'timeToBuild',
                 'planet_id',
-                ])
-        ->withTimestamps();
+            ])
+            ->withTimestamps();
 
 //       todo: ->using(TechnologyAtUser::class);
     }
@@ -79,11 +73,4 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     {
         return $this->language;
     }
-
-
-
 }
-
-
-
-

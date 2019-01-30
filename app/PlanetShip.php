@@ -29,7 +29,4 @@ class PlanetShip extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

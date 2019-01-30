@@ -51,12 +51,14 @@ class BuildingController extends Controller
         ];
 
         $planet = Planet::find($id);
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+        }
 
-        if (empty($planet->owner_id))
+        if (empty($planet->owner_id)) {
             return response()->json(['status' => 'success',
                 'message' => MessagesController::i18n('planet_uninhabited', $language)], 200);
+        }
 
         $ref = $this->refreshPlanet($request, $planet);
         //fresh buildings data
@@ -64,10 +66,11 @@ class BuildingController extends Controller
 
         $resources = [];
 
-        if (empty($buildingAtUser->pivot->level))
+        if (empty($buildingAtUser->pivot->level)) {
             $level = 1;
-        else
+        } else {
             $level = $buildingAtUser->pivot->level;
+        }
 
         if (!empty($building->resources) || !empty($building->requirements) || !empty($building->upgrades)) {
             $resources = app('App\Http\Controllers\ResourceController')
@@ -111,11 +114,12 @@ class BuildingController extends Controller
         $start = microtime(true);
         $language = $request->auth->language;
 
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json([
                 'status' => 'error',
                 'message' => MessagesController::i18n('planet_not_found', $language)
             ], 200);
+        }
 
         $owner = User::find($planet->owner_id);
 
@@ -147,17 +151,21 @@ class BuildingController extends Controller
                 $overallGasPH += $resources['production']['gas'] * $energyEfficiency;
                 $energy = $resources['production']['energy'];
 
-                if (!empty($resources['storage']['metal']))
+                if (!empty($resources['storage']['metal'])) {
                     $storage['metal'] += $resources['storage']['metal'];
-                if (!empty($resources['storage']['metal']))
+                }
+                if (!empty($resources['storage']['metal'])) {
                     $storage['crystal'] += $resources['storage']['crystal'];
-                if (!empty($resources['storage']['gas']))
+                }
+                if (!empty($resources['storage']['gas'])) {
                     $storage['gas'] += $resources['storage']['gas'];
+                }
 
-                if ($energy > 0)
+                if ($energy > 0) {
                     $overallEnergyAvailable += $energy;
-                else
+                } else {
                     $overallEnergyUsed += $energy;
+                }
 
                 //update ques
                 if (!empty($buildingByPivot->startTime)) {
@@ -165,11 +173,11 @@ class BuildingController extends Controller
                         ->addSecond($buildingByPivot->timeToBuild);
 
                     if (Carbon::now()->diffInSeconds($endTime, false) <= 0) {
-
                         //что то достроилось
                         $add = 0;
-                        if ($buildingByPivot->startTime)
+                        if ($buildingByPivot->startTime) {
                             $add = ($buildingByPivot->destroying) ? '-1' : 1;
+                        }
 
                         $planet->buildings()->updateExistingPivot($building->id, [
                             'level' => $buildingByPivot->level + ($add),
@@ -219,15 +227,15 @@ class BuildingController extends Controller
             foreach ($ships as $ship) {
                 $shipByPivot = $ship->pivot;
                 if (!empty($shipByPivot->startTime) && !(empty($shipByPivot->timeToBuildOne))) {
-
                     $diff = Carbon::parse($shipByPivot->updated_at)
                         ->subSeconds($shipByPivot->passedFromLastOne)
                         ->diffInSeconds(Carbon::now(), true);
 
                     //количество целых за текущий отрезок
                     $quantityBuilt = floor($diff / $shipByPivot->timeToBuildOne);
-                    if ($quantityBuilt > $shipByPivot->quantityQued)
+                    if ($quantityBuilt > $shipByPivot->quantityQued) {
                         $quantityBuilt = $shipByPivot->quantityQued;
+                    }
 
                     //остаток от деления
                     $timePassed = $diff % $shipByPivot->timeToBuildOne;
@@ -313,15 +321,15 @@ class BuildingController extends Controller
             $defences = $planet->defencesBuildingNow();
             foreach ($defences as $defence) {
                 if (!empty($defence->startTime) && !(empty($defence->timeToBuildOne))) {
-
                     $diff = Carbon::parse($defence->updated_at)
                         ->subSeconds($defence->passedFromLastOne)
                         ->diffInSeconds(Carbon::now(), true);
 
                     //количество целых за текущий отрезок
                     $quantityBuilt = floor($diff / $defence->timeToBuildOne);
-                    if ($quantityBuilt > $defence->quantityQued)
+                    if ($quantityBuilt > $defence->quantityQued) {
                         $quantityBuilt = $defence->quantityQued;
+                    }
 
                     //остаток от деления
                     $timePassed = $diff % $defence->timeToBuildOne;
@@ -440,7 +448,10 @@ class BuildingController extends Controller
                     'crystal' => $overallCrystalPH,
                     'gas' => $overallGasPH,
                 ],
-                $diff, $planet, $storage);
+                $diff,
+                $planet,
+                $storage
+            );
             $overallMetalPH = $resourcesToUpdate['metalPH'];
             $overallCrystalPH = $resourcesToUpdate['crystalPH'];
             $overallGasPH = $resourcesToUpdate['gasPH'];
@@ -496,21 +507,23 @@ class BuildingController extends Controller
 
         foreach ($buildingsWithPivot as $building) {
             $resources = app('App\Http\Controllers\ResourceController')->parseAll($owner, $building, $building->pivot->level, $building->pivot->planet_id);
-            if ($resources['production']['energy'] < 0)
+            if ($resources['production']['energy'] < 0) {
                 $energyNeed += $resources['production']['energy'];
-            else
+            } else {
                 $energyHave += $resources['production']['energy'];
+            }
         }
 
-        if (($energyHave / abs($energyNeed)) > 1)
+        if (($energyHave / abs($energyNeed)) > 1) {
             $eff = 1;
-        else
+        } else {
             $eff = $energyHave / abs($energyNeed);
+        }
 
         return $eff;
     }
 
-    public function resourcesBalance($resourcesPH, $time, Planet $planet, Array $storage): array
+    public function resourcesBalance($resourcesPH, $time, Planet $planet, array $storage): array
     {
         //добыто за промежуток
         $metalMined = $resourcesPH['metal'] * ($time / 60);
@@ -603,17 +616,20 @@ class BuildingController extends Controller
         $language = $request->auth->language;
         $planet = Planet::find($planetId);
 
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+        }
 
-        if (empty($planet->owner_id))
+        if (empty($planet->owner_id)) {
             return response()->json(['status' => 'success',
                 'message' => MessagesController::i18n('planet_uninhabited', $language)], 200);
+        }
 
         $user = User::find($planet->owner_id);
 
         $bap = DB::table('buildings-with-lang as buildings')
-            ->select('planets.id',
+            ->select(
+                'planets.id',
                 'planet_building.planet_id as pivot_planet_id',
                 'planet_building.building_id as pivot_building_id',
                 'planet_building.level as pivot_level',
@@ -621,12 +637,16 @@ class BuildingController extends Controller
                 'planet_building.timeToBuild as pivot_timeToBuild',
                 'planet_building.updated_at as pivot_updated_at',
                 'planet_building.destroying as pivot_destroying',
-                'buildings.*')
-            ->leftJoin(DB::raw(
-                "(select * from `planet_building` where `planet_building`.`planet_id` = $planetId) planet_building"),
+                'buildings.*'
+            )
+            ->leftJoin(
+                DB::raw(
+                    "(select * from `planet_building` where `planet_building`.`planet_id` = $planetId) planet_building"
+                ),
                 function ($join) {
                     $join->on('planet_building.building_id', '=', 'buildings.id');
-                })
+                }
+            )
             ->leftJoin('planets', 'planets.id', '=', 'planet_building.planet_id')
             ->where('buildings.race', '=', $user->race)
             ->where('buildings.language', '=', $user->language)
@@ -648,8 +668,9 @@ class BuildingController extends Controller
                 'race' => $building->race,
             ];
 
-            if (empty($building->pivot_level))
+            if (empty($building->pivot_level)) {
                 $building->pivot_level = 0;
+            }
 
             $resources = app('App\Http\Controllers\ResourceController')
                 ->parseAll($user, $building, $building->pivot_level, $planetId);
@@ -724,21 +745,24 @@ class BuildingController extends Controller
         //нашли планету
         $planet = Planet::find($planetId);
 
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 200);
+        }
 
         $user = User::find($planet->owner_id);
 
         $ref = $this->refreshPlanet($request, $planet);
 
         //que check
-        if ($ref['buildingQued'] && ($ref['buildingTimeRemain'] > 0))
+        if ($ref['buildingQued'] && ($ref['buildingTimeRemain'] > 0)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_que_not_empty', $language), 'time_remain' => $ref['buildingTimeRemain']], 403);
+        }
 
         $slots = $this->slotsAvailable($planet);
 
-        if (!$slots['canBuild'])
+        if (!$slots['canBuild']) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_slots_insufficient', $language), 'time_remain' => $ref['buildingTimeRemain']], 403);
+        }
 
         $building = Building::find($buildingId);
 
@@ -756,8 +780,9 @@ class BuildingController extends Controller
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')
             ->parseAll($user, $building, $level, $planetId);
 
-        if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost']))
+        if (!$this->checkResourcesAvailable($planet, $resourcesAtLevel['cost'])) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('no_resources', $language)], 403);
+        }
 
         $this->buy($planet, $resourcesAtLevel['cost']);
 
@@ -805,8 +830,9 @@ class BuildingController extends Controller
             ($resourcesToCheck['metal'] <= $planet->metal) &&
             ($resourcesToCheck['crystal'] <= $planet->crystal) &&
             ($resourcesToCheck['gas'] <= $planet->gas)
-        )
+        ) {
             return true;
+        }
         return false;
     }
 
@@ -820,12 +846,15 @@ class BuildingController extends Controller
      */
     public function buy(Planet $planet, array $resources, $refund = false)
     {
-        if (empty($resources['metal']))
+        if (empty($resources['metal'])) {
             $resources['metal'] = 0;
-        if (empty($resources['crystal']))
+        }
+        if (empty($resources['crystal'])) {
             $resources['crystal'] = 0;
-        if (empty($resources['gas']))
+        }
+        if (empty($resources['gas'])) {
             $resources['gas'] = 0;
+        }
 
         if ($refund) {
             $resources['metal'] = -$resources['metal'];
@@ -863,20 +892,23 @@ class BuildingController extends Controller
         $language = $request->auth->language;
 
         $planet = Planet::find($planetId);
-        if (!$planet)
+        if (!$planet) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        }
 
         $user = User::find($request->auth->id);
         $owner = User::find($planet->owner_id);
 
-        if ($user != $owner)
+        if ($user != $owner) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+        }
 
         $ref = $this->refreshPlanet($request, $planet);
 
         //slots check
-        if (!$ref['buildingQued'] || ($ref['buildingTimeRemain'] == 0))
+        if (!$ref['buildingQued'] || ($ref['buildingTimeRemain'] == 0)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_que_empty', $language)], 403);
+        }
 
         $building = Building::find($bid);
         $buildingAtPlanet = $planet->buildings()->find($bid);
@@ -915,7 +947,6 @@ class BuildingController extends Controller
 
             'refunded' => $refund,
         ], 200);
-
     }
 
     /**
@@ -934,20 +965,23 @@ class BuildingController extends Controller
         $language = $request->auth->language;
 
         $planet = Planet::find($planetId);
-        if (!$planet)
+        if (!$planet) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        }
         $user = User::find($planet->owner_id);
 
         $ref = $this->refreshPlanet($request, $planet);
         //slots check
-        if ($ref['buildingQued'] && (!empty($ref['queTimeRemain'])))
+        if ($ref['buildingQued'] && (!empty($ref['queTimeRemain']))) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_que_not_empty', $language), 'time_remain' => $ref['queTimeRemain']], 403);
+        }
 
         $building = Building::find($buildingId);
 
         $buildingAtPlanet = $planet->buildings()->where('building_id', $buildingId)->first();
-        if (!$buildingAtPlanet || ($buildingAtPlanet->pivot->level <= 0))
+        if (!$buildingAtPlanet || ($buildingAtPlanet->pivot->level <= 0)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('building_level_0', $language)], 403);
+        }
 
         //resources refund
         $resourcesAtLevel = app('App\Http\Controllers\ResourceController')

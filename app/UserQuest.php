@@ -25,8 +25,4 @@ class UserQuest
      */
     protected $hidden = [
     ];
-
-
 }
-
-

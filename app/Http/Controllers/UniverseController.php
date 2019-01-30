@@ -16,14 +16,13 @@ class UniverseController extends BaseController
     public function showMyGalaxy(Request $request)
     {
         $myGalaxy = Planet::select('galaxy')->where('owner_id', $request->auth->id)->first();
-        return response()->json(Planet::select( 'coordinateX as x', 'coordinateY as y', 'type as image')
+        return response()->json(Planet::select('coordinateX as x', 'coordinateY as y', 'type as image')
                                 ->where('galaxy', $myGalaxy)
                                 ->groupBy('coordinateX', 'coordinateY')
                                 ->orderBy('coordinateX', 'ASC')
                                 ->orderBy('coordinateY', 'ASC')
                                 ->orderBy('orbit', 'ASC')
-                                ->get()
-                                );
+                                ->get());
     }
 
     /**
@@ -32,14 +31,11 @@ class UniverseController extends BaseController
      */
     public function showOneGalaxy(Request $request, $galaxyId)
     {
-        return response()->json(Planet::select( 'coordinateX as x', 'coordinateY as y', 'type as image')
+        return response()->json(Planet::select('coordinateX as x', 'coordinateY as y', 'type as image')
                                 ->groupBy('coordinateX', 'coordinateY')
                                 ->orderBy('coordinateX', 'ASC')
                                 ->orderBy('coordinateY', 'ASC')
                                 ->orderBy('orbit', 'ASC')
-                                ->get()
-                                );
+                                ->get());
     }
-
-
 }

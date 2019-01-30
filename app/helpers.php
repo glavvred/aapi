@@ -12,12 +12,14 @@ if (!function_exists('imagePath')) {
     function imagePath(object $object, string $notStdReally = null)
     {
         $name = $object->name;
-        if (!empty($object->base_name))
+        if (!empty($object->base_name)) {
             $name = $object->base_name;
+        }
 
         $class = class_basename($object);
-        if (class_basename($object) == 'stdClass')
+        if (class_basename($object) == 'stdClass') {
             $class = $notStdReally;
+        }
 
         $plural = Str::plural($class);
 

@@ -71,10 +71,11 @@ $factory->define(App\Planet::class, function (Faker\Generator $faker) {
         $owner = null;
     } else {
         $users = \App\User::all()->pluck('id')->toArray();
-        if (rand(0,100) <= 10)
+        if (rand(0, 100) <= 10) {
             $owner = $faker->randomElement($users);
-        else
+        } else {
             $owner =  null;
+        }
     }
     $name = $faker->colorName;
     echo $orbit . ' ' . $name . "\r\n";
@@ -133,16 +134,14 @@ $factory->define(App\Comments::class, function (Faker\Generator $faker) {
         'created_at' => Carbon::now()->format('Y-m-d H:i:s'),
         'updated_at' => Carbon::now()->format('Y-m-d H:i:s'),
     ];
-
-
 });
 
 //buildings
 $factory->define(App\Building::class, function (Faker\Generator $faker) {
     return [
         'name' => $faker->unique()->colorName,
-        'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
-        'race' => $faker->randomElement(array('1', '2')),
+        'type' => $faker->randomElement(['1', '2', '3', '4', '5']),
+        'race' => $faker->randomElement(['1', '2']),
     ];
 });
 
@@ -151,8 +150,8 @@ $factory->define(App\Ship::class, function (Faker\Generator $faker) {
     $name = $faker->colorName . ' ' . $faker->randomNumber(3);
     return [
         'name' => $name,
-        'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
-        'race' => $faker->randomElement(array('1', '2')),
+        'type' => $faker->randomElement(['1', '2', '3', '4', '5']),
+        'race' => $faker->randomElement(['1', '2']),
     ];
 });
 
@@ -164,10 +163,10 @@ $factory->define(App\Governor::class, function (Faker\Generator $faker) {
         'cost_metal' => $faker->randomNumber(2),
         'cost_crystal' => $faker->randomNumber(2),
         'cost_gas' => $faker->randomNumber(2),
-        'energy_ph' => $faker->randomElement(array('-1', '-1', '1')) * $faker->randomNumber(2),
+        'energy_ph' => $faker->randomElement(['-1', '-1', '1']) * $faker->randomNumber(2),
         'dark_matter_cost' => 0,
-        'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
-        'race' => $faker->randomElement(array('1', '2')),
+        'type' => $faker->randomElement(['1', '2', '3', '4', '5']),
+        'race' => $faker->randomElement(['1', '2']),
         'attack_bonus' => $faker->randomNumber(2),
         'defence_bonus' => $faker->randomNumber(2),
         'shield_bonus' => $faker->randomNumber(2),
@@ -178,9 +177,7 @@ $factory->define(App\Governor::class, function (Faker\Generator $faker) {
 $factory->define(App\Technology::class, function (Faker\Generator $faker) {
     return [
         'name' => 'technology: '.$faker->unique()->countryCode,
-        'type' => $faker->randomElement(array('1', '2', '3', '4', '5')),
-        'race' => $faker->randomElement(array('1', '2')),
+        'type' => $faker->randomElement(['1', '2', '3', '4', '5']),
+        'race' => $faker->randomElement(['1', '2']),
     ];
 });
-
-

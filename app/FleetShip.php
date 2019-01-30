@@ -77,8 +77,4 @@ class FleetShip extends Model
     {
         return $this->belongsTo(Fleet::class, 'fleet_id', 'id')->get();
     }
-
-
 }
-
-

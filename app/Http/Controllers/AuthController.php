@@ -104,21 +104,20 @@ class AuthController extends BaseController
 
             //ищем юзера с этим ключом
             $user = User::where('api_key', $this->request->input('token'))->first();
-            if (!$user)
+            if (!$user) {
                 throw new \Exception('no user found');
+            }
 
             $user->api_key = $this->jwt($user);
             //пишем новый ключ в базу
             $user->save();
 
             return response()->json(['token' => JWT::encode($decoded, env('JWT_SECRET'))], 200);
-
         } catch (\Firebase\JWT\ExpiredException $e) {
             //если не получается - пробуем декодить с допуском в 2 часа.
             JWT::$leeway = 7200000;
             try {
                 $decoded = (array)JWT::decode($this->request->input('token'), env('JWT_SECRET'), ['HS256']);
-
             } catch (\Firebase\JWT\ExpiredException $e) {
                 return response()->json(['error' => 'Expired, relogin', 307]);
             }
@@ -131,7 +130,6 @@ class AuthController extends BaseController
             //тут редирект на ре-логин. что то пошло не так
             return response()->json(['error' => $e->getMessage()], 307);
         }
-
     }
 
     /**
@@ -145,7 +143,8 @@ class AuthController extends BaseController
             $user->api_key = null;
             $user->save();
             return response()->json(['success' => 'logged out'], 200);
-        } else
+        } else {
             return response()->json(['fail' => 'no user found with that token'], 200);
+        }
     }
 }

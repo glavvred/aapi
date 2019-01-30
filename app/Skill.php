@@ -25,8 +25,4 @@ class Skill extends Model
      */
     protected $hidden = [
     ];
-
-
 }
-
-

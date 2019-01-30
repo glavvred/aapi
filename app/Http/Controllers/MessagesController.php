@@ -29,8 +29,9 @@ class MessagesController extends BaseController
         $messages = Message::where('name', $messageName)
             ->where('language', $language)->first();
 
-        if (empty($messages))
+        if (empty($messages)) {
             return 'Error is not yet translated. please tell administration: '. $messageName. ' with language: '.$language;
+        }
 
         return $messages->text;
     }
@@ -46,10 +47,10 @@ class MessagesController extends BaseController
         $messages = Skill::where('name', $messageName)
             ->where('language', $language)->first();
 
-        if (empty($messages))
+        if (empty($messages)) {
             return 'Skill/Property is not yet translated. please tell administration: '. $messageName. ' with language: '.$language;
+        }
 
         return $messages->text;
     }
-
 }

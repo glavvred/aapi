@@ -30,7 +30,6 @@ class CreateCommentsTable extends Migration
             $table->boolean('share_with_alliance')->nullable();
 
             $table->timestamps();
-
         });
     }
 

@@ -29,7 +29,6 @@ class CreatePlanetBuildingTable extends Migration
             $table->integer('timeToBuild')->nullable();
             $table->boolean('destroying');
             $table->timestamps();
-
         });
     }
 

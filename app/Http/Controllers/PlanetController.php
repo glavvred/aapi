@@ -37,7 +37,6 @@ class PlanetController extends Controller
             ->first();
 
         return $planet;
-
     }
 
     /**
@@ -58,12 +57,12 @@ class PlanetController extends Controller
         for ($orbit = Config::get('constants.galaxy.dimensions.orbit.min_inhabited');
              $orbit <= Config::get('constants.galaxy.dimensions.orbit.max_inhabited');
              $orbit++) {
-
             $faker = Factory::create();
-            if ($faker->boolean(75))
+            if ($faker->boolean(75)) {
                 $this->newPlanet($xc, $yc, $orbit);
-            else
+            } else {
                 $this->newOrbit($xc, $yc, $orbit);
+            }
         }
 
         //seedOrbits last
@@ -72,7 +71,6 @@ class PlanetController extends Controller
              $orbit++) {
             $this->newOrbit($xc, $yc, $orbit);
         }
-
     }
 
     /**
@@ -171,8 +169,9 @@ class PlanetController extends Controller
     {
         $planetList = Planet::where('coordinateX', $xc)->where('coordinateY', $yc)->get();
         foreach ($planetList as $planet) {
-            if ($request->auth->id != $planet->owner_id)
+            if ($request->auth->id != $planet->owner_id) {
                 $planet->makeHidden(['metal', 'crystal', 'gas', 'created_at', 'updated_at']);
+            }
         }
         return response()->json($planetList);
     }
@@ -249,7 +248,6 @@ class PlanetController extends Controller
                 ];
             }
             $res[] = $plan;
-
         }
         return response()->json($res);
     }
@@ -285,7 +283,9 @@ class PlanetController extends Controller
 
         //my comments not shared
         $comments['own'] = Comments::where(
-            'coordinateX', $planet->coordinateX)
+            'coordinateX',
+            $planet->coordinateX
+        )
             ->where('coordinateY', $planet->coordinateY)
             ->where('orbit', $planet->orbit)
             ->where('share_with_alliance', 0)
@@ -327,7 +327,6 @@ class PlanetController extends Controller
         } else {
             return response()->json(['status' => 'fail']);
         }
-
     }
 
     /**
@@ -346,16 +345,18 @@ class PlanetController extends Controller
 
         $planet = Planet::find($pid);
 
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error',
                 'message' => MessagesController::i18n('planet_not_found', $request->auth->language),
             ], 403);
+        }
 
 
-        if ($planet->owner()->id != $request->auth->id)
+        if ($planet->owner()->id != $request->auth->id) {
             return response()->json(['status' => 'error',
                 'message' => MessagesController::i18n('planet_not_yours', $request->auth->language),
             ], 403);
+        }
 
 
         if ($planet->fill($request->all())->save()) {

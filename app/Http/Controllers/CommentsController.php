@@ -28,7 +28,8 @@ class CommentsController extends Controller
      * @param $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function showAllMyComments($request) {
+    public function showAllMyComments($request)
+    {
         $authId = $request->auth->id;
         $res = Comments::where('owner_id', $authId)
             ->get();
@@ -41,7 +42,8 @@ class CommentsController extends Controller
      * @param Planet $planet
      * @return \Illuminate\Http\JsonResponse
      */
-    public function showCommentsForPlanet(User $user, Planet $planet) {
+    public function showCommentsForPlanet(User $user, Planet $planet)
+    {
         $res = Comments::where(function ($query) use ($user) {
             $query->where('owner_id', '=', $user->id);
         })
@@ -63,19 +65,18 @@ class CommentsController extends Controller
      * @param $yc
      * @return \Illuminate\Http\JsonResponse
      */
-    public function showCommentsOverSolarSystem(User $user, $xc, $yc) {
+    public function showCommentsOverSolarSystem(User $user, $xc, $yc)
+    {
 
         $res = Comments::where('owner_id', '=', $user->id)
             ->orWhere(function ($query) use ($user) {
                 $query->where('alliance_id', '=', $user->alliance_id)
-                    ->orWhere('share_with_alliance', '=', 'true');}
-                    )
+                    ->orWhere('share_with_alliance', '=', 'true');
+            })
             ->andWhere('coordinateX', $xc)
             ->andWhere('coordinateY', $yc)
             ->andWhere('orbit', null);
 
         return response()->json($res, 200);
-}
-
-
+    }
 }

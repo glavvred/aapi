@@ -8,14 +8,14 @@ class Bonus
 {
     public function technology(User $user)
     {
-
     }
 
     public function get(Request $request, int $planetId = null)
     {
         $user = User::find($request->auth->id)->first();
-        if (!empty($planetId))
+        if (!empty($planetId)) {
             $planet = Planet::find($planetId)->first();
+        }
 
         $res = [
             'powerUps' => $this->powerUp($user),
@@ -37,9 +37,6 @@ class Bonus
 
     public function building(User $user, Planet $planet)
     {
-return [];
+        return [];
     }
-
 }
-
-

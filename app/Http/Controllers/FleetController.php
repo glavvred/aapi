@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Fleet;
 
-
 /**
  * Class PlanetController
  * @package App\Http\Controllers
@@ -20,5 +19,4 @@ class FleetController extends Controller
     {
         //
     }
-
 }
