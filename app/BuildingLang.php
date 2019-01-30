@@ -28,7 +28,4 @@ class BuildingLang extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

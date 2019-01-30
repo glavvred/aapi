@@ -101,13 +101,11 @@ class Fleet extends Model
     public function order()
     {
         $order = $this->hasOne(FleetOrder::class, 'id', 'order_type')->first();
-        if (!empty($order))
+        if (!empty($order)) {
             return $order;
-        else
+        } else {
             return
                 new FleetOrder(['name' => 'empty', 'type' => 0]);
+        }
     }
-
 }
-
-

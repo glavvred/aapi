@@ -46,7 +46,7 @@ class Technology extends Model
      * @throws \Exception
      * @return mixed
      */
-    public function i18n(string $language   )
+    public function i18n(string $language)
     {
         $translated = $this
             ->hasMany(TechnologyLang::class, 'technology_name', 'name')
@@ -58,7 +58,4 @@ class Technology extends Model
         }
         return $translated;
     }
-
 }
-
-

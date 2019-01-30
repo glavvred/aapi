@@ -45,7 +45,6 @@ class FleetDefence extends Model
         });
 
         self::updated(function ($model) {
-
         });
 
         self::deleting(function ($model) {
@@ -72,8 +71,4 @@ class FleetDefence extends Model
     {
         return $this->belongsTo(Fleet::class, 'fleet_id', 'id')->get();
     }
-
-
 }
-
-

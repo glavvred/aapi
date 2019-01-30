@@ -29,7 +29,4 @@ class PlanetDefence extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

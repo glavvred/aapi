@@ -31,7 +31,4 @@ class ShipLang extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

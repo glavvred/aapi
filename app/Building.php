@@ -45,7 +45,6 @@ class Building extends Model
         DB::table('planet_building')
             ->where('building_id', $this->id)
             ->first();
-
     }
 
     /**
@@ -67,7 +66,4 @@ class Building extends Model
 
         return $translated;
     }
-
 }
-
-

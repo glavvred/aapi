@@ -31,7 +31,4 @@ class DefenceLang extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

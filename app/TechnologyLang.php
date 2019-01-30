@@ -31,7 +31,4 @@ class TechnologyLang extends Model
      */
     protected $hidden = [
     ];
-
 }
-
-

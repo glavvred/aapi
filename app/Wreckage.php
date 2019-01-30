@@ -34,7 +34,4 @@ class Wreckage extends Model
     {
         return $this->belongsTo(Planet::class);
     }
-
 }
-
-

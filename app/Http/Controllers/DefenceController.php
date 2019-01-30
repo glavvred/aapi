@@ -39,24 +39,27 @@ class DefenceController extends Controller
     {
         //нашли планету
         $planet = Planet::find($planetId);
-        if (!$planet)
+        if (!$planet) {
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
+        }
 
         //нашли оборону
         $defence = Defence::find($defenceId);
-        if (!$defence)
+        if (!$defence) {
             return response()->json(['status' => 'error', 'message' => 'no ship found'], 403);
+        }
 
         //check que
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
 
-        if (!empty($ref['defences']))
+        if (!empty($ref['defences'])) {
             $ref = $ref['defences'];
+        }
 
         $defenceDetails = app('App\Http\Controllers\ResourceController')->parseAll(User::find($planet->owner_id), $defence, 1, $planetId);
 
         //que check
-        if (!empty($ref['defenceStartTime']) && !empty(($ref['defenceQuantityQued'] > 0)))
+        if (!empty($ref['defenceStartTime']) && !empty(($ref['defenceQuantityQued'] > 0))) {
             return response()->json(['status' => 'error',
                 'message' => 'que is not empty',
                 'defenceQuantityQued' => $ref['defenceQuantityQued'],
@@ -65,6 +68,7 @@ class DefenceController extends Controller
                 'defenceTimePassedFromLast' => $ref['defenceTimePassedFromLast'],
                 'fullQueTimeRemain' => $ref['defenceOneTimeToBuild'] * $ref['defenceQuantityRemain'] - $ref['defenceTimePassedFromLast'],
             ], 403);
+        }
 
         $planetDefence = PlanetDefence::where('planet_id', $planetId)
             ->where('defence_id', $defenceId)
@@ -88,8 +92,9 @@ class DefenceController extends Controller
             'gas' => $defenceDetails['cost']['gas'] * $quantity,
         ];
 
-        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources))
+        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources)) {
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
+        }
 
         app('App\Http\Controllers\BuildingController')->buy($planet, $resources);
 
@@ -125,26 +130,30 @@ class DefenceController extends Controller
         $language = $request->auth->language;
 
         $planet = Planet::find($planetId);
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        }
 
         $user = User::find($request->auth->id);
         $owner = User::find($planet->owner_id);
 
-        if ($user != $owner)
+        if ($user != $owner) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+        }
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
         $ref = $ref['defences'];
 
         $planetDefences = $planet->defencesBuildingNow();
         foreach ($planetDefences as $check) {
-            if ($check->defence_id == $sid)
+            if ($check->defence_id == $sid) {
                 $planetDefence = $check;
+            }
         }
         //que check
-        if (empty($ref['defenceStartTime']) || empty($planetDefence->quantityQued))
+        if (empty($ref['defenceStartTime']) || empty($planetDefence->quantityQued)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('defence_que_empty', $language)], 403);
+        }
 
         //resources refund
         $resources = app('App\Http\Controllers\ResourceController')
@@ -203,10 +212,11 @@ class DefenceController extends Controller
 
         foreach ($fleetList as $fleet) {
             foreach ($fleet->defences as $defence) {
-                if (!empty($defencesAtPlanet[$defence->defence_id]))
+                if (!empty($defencesAtPlanet[$defence->defence_id])) {
                     $defencesAtPlanet[$defence->defence_id] += $defence->quantity;
-                else
+                } else {
                     $defencesAtPlanet[$defence->defence_id] = $defence->quantity;
+                }
             }
         }
 
@@ -261,10 +271,11 @@ class DefenceController extends Controller
                     $re['updated_at'] = Carbon::now()->format('Y-m-d H:i:s');
                 }
             }
-            if (!empty($defencesAtPlanet[$defenceAvailable->id]))
+            if (!empty($defencesAtPlanet[$defenceAvailable->id])) {
                 $re['quantity'] = $defencesAtPlanet[$defenceAvailable->id];
-            else
+            } else {
                 $re['quantity'] = 0;
+            }
 
             $res[] = $re;
         }

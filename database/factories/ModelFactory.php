@@ -71,10 +71,11 @@ $factory->define(App\Planet::class, function (Faker\Generator $faker) {
         $owner = null;
     } else {
         $users = \App\User::all()->pluck('id')->toArray();
-        if (rand(0,100) <= 10)
+        if (rand(0, 100) <= 10) {
             $owner = $faker->randomElement($users);
-        else
+        } else {
             $owner =  null;
+        }
     }
     $name = $faker->colorName;
     echo $orbit . ' ' . $name . "\r\n";
@@ -133,8 +134,6 @@ $factory->define(App\Comments::class, function (Faker\Generator $faker) {
         'created_at' => Carbon::now()->format('Y-m-d H:i:s'),
         'updated_at' => Carbon::now()->format('Y-m-d H:i:s'),
     ];
-
-
 });
 
 //buildings
@@ -182,5 +181,3 @@ $factory->define(App\Technology::class, function (Faker\Generator $faker) {
         'race' => $faker->randomElement(array('1', '2')),
     ];
 });
-
-

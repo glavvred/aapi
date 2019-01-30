@@ -45,6 +45,5 @@ class CreateGovernorsTable extends Migration
     public function down()
     {
         Schema::dropIfExists('governors');
-
     }
 }

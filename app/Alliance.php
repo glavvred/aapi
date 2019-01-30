@@ -40,7 +40,4 @@ class Alliance extends Model
     {
         return $this->hasMany(User::class, 'alliance_id', 'id');
     }
-
 }
-
-

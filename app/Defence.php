@@ -36,10 +36,12 @@ class Defence extends Model
      */
     public function fleetShips()
     {
-        return $this->belongsToMany('App\FleetShip',
+        return $this->belongsToMany(
+            'App\FleetShip',
             'fleet_ships',
             'ship_id',
-            'fleet_id')
+            'fleet_id'
+        )
             ->withPivot('quantity');
     }
 
@@ -63,5 +65,3 @@ class Defence extends Model
         return $translated;
     }
 }
-
-

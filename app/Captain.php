@@ -46,10 +46,4 @@ class Captain extends Model
     {
         return $this->belongsTo(Fleet::class);
     }
-
-
-
-
 }
-
-

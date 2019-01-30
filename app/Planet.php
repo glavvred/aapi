@@ -91,7 +91,4 @@ class Planet extends Model
     {
         return $this->belongsToMany(Governor::class, 'coordinate_governors', 'coordinate_id');
     }
-
 }
-
-

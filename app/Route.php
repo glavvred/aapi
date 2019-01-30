@@ -64,7 +64,7 @@ class Route extends Model
      */
     public function parent()
     {
-        return $this->belongsTo(Route::class,'parent_id')->where('parent_id',0)->with('parent');
+        return $this->belongsTo(Route::class, 'parent_id')->where('parent_id', 0)->with('parent');
     }
 
     /**
@@ -72,9 +72,6 @@ class Route extends Model
      */
     public function children()
     {
-        return $this->hasOne(Route::class,'parent_id')->with('children');
+        return $this->hasOne(Route::class, 'parent_id')->with('children');
     }
-
 }
-
-

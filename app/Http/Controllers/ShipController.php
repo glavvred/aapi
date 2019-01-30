@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
-
 /**
  * Class PlanetController
  * @package App\Http\Controllers
@@ -40,10 +39,11 @@ class ShipController extends Controller
         $origin = $coordinates->find($planetId);
         $destination = $coordinates->find($destinationId);
 
-        if (($destination->coordinateX != $origin->coordinateX) || ($destination->coordinateY != $origin->coordinateY))
+        if (($destination->coordinateX != $origin->coordinateX) || ($destination->coordinateY != $origin->coordinateY)) {
             $destinationOrbit = 30;
-        else
+        } else {
             $destinationOrbit = $destination->orbit;
+        }
 
         var_dump($this->moveToOrbit($request, $fleetId, $destinationOrbit, 1, 1));
 
@@ -83,7 +83,6 @@ class ShipController extends Controller
                 $shipProperties = app('App\Http\Controllers\ResourceController')
                     ->parseAll(User::find($request->auth->id), $ship, 1, $planetId);
                 var_dump($shipProperties['properties']);
-
             }
         }
 
@@ -153,10 +152,11 @@ class ShipController extends Controller
                 ->parseAll(User::find($request->auth->id), $ship, 1, $origin->id);
 
             //drone capacity
-            if (empty($resources['properties']['non-combat']['capacity_ship']))
+            if (empty($resources['properties']['non-combat']['capacity_ship'])) {
                 $droneCount += $shipInFleet->quantity;
-            else
+            } else {
                 $droneCapacity += $shipInFleet->quantity * $resources['properties']['non-combat']['capacity_ship'];
+            }
 
             //fuel
             $fuelNeeded += $resources['properties']['non-combat']['consumption'] *
@@ -167,11 +167,12 @@ class ShipController extends Controller
             $ships[$ship->name] = [$shipInFleet->quantity, $resources['properties']['non-combat']['consumption']];
         }
 
-        if ($fuelNeeded > $origin->gas)
+        if ($fuelNeeded > $origin->gas) {
             return response()->json(['status' => 'error',
                 'fuelNeeded' => $fuelNeeded,
                 'fleet' => $fleet,
                 'message' => MessagesController::i18n('gas_not_enough', $language)], 200);
+        }
 
         if ($fuelNeeded + $cargoMetal + $cargoCrystal + $cargoGas > $fleet->overall_capacity) {
             $res = '';
@@ -192,8 +193,9 @@ class ShipController extends Controller
                 'fleetCapacity' => $fleet->overall_capacity
             ], 200);
         }
-        if ($droneCount > $droneCapacity)
+        if ($droneCount > $droneCapacity) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('drone_capacity_not_enough_to_flight', $language)], 200);
+        }
 
 //        $routes = $fleet->routes();
 //        foreach ($routes as $route) {
@@ -204,7 +206,6 @@ class ShipController extends Controller
         RouteController::ladder($request, $fleet, $destination, $orderType);
 
         return response()->json(['status' => 'success', 'message' => MessagesController::i18n('fleet_dispatched', $language)], 200);
-
     }
 
     public function makeRouteNear(Fleet $fleet, $destination)
@@ -228,12 +229,10 @@ class ShipController extends Controller
 
     public function checkCollision(Fleet $fleet, array $route)
     {
-
     }
 
     public function refreshFleet()
     {
-
     }
 
     /**
@@ -313,16 +312,18 @@ class ShipController extends Controller
         $crystal = $request->input('crystal');
         $gas = $request->input('gas');
 
-        if ($fleet->owner()->id != $request->auth->id)
+        if ($fleet->owner()->id != $request->auth->id) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('origin_fleet_not_your', $language)], 200);
+        }
 
         if (($metal +
                 $fleet->metal +
                 $crystal +
                 $fleet->crystal +
                 $gas +
-                $fleet->gas) > $fleet->overall_capacity)
+                $fleet->gas) > $fleet->overall_capacity) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('fleet_capacity_exceeded', $language)], 200);
+        }
 
         $planet = $fleet->coordinate;
 
@@ -330,31 +331,33 @@ class ShipController extends Controller
             if (($metal > 0 && $planet->metal >= $metal) || ($metal < 0 && $fleet->metal >= -$metal)) {
                 $planet->metal -= $metal;
                 $fleet->metal += $metal;
-            } else
+            } else {
                 return response()->json(['status' => 'error', 'message' => MessagesController::i18n('metal_not_enough', $language)], 200);
+            }
         }
 
         if (!empty($crystal)) {
             if (($crystal > 0 && $planet->crystal >= $crystal) || ($crystal < 0 && $fleet->crystal >= -$crystal)) {
                 $planet->crystal -= $crystal;
                 $fleet->crystal += $crystal;
-            } else
+            } else {
                 return response()->json(['status' => 'error', 'message' => MessagesController::i18n('crystal_not_enough', $language)], 200);
+            }
         }
 
         if (!empty($gas)) {
             if (($gas > 0 && $planet->gas >= $gas) || ($gas < 0 && $fleet->gas >= -$gas)) {
                 $planet->gas -= $gas;
                 $fleet->gas += $gas;
-            } else
+            } else {
                 return response()->json(['status' => 'error', 'message' => MessagesController::i18n('crystal_not_enough', $language)], 200);
+            }
         }
 
         $planet->save();
         $fleet->save();
 
         return response()->json(['status' => 'success', 'message' => MessagesController::i18n('resources_transfer_success', $language)], 200);
-
     }
 
     /**
@@ -370,34 +373,41 @@ class ShipController extends Controller
     {
         $fleet = Fleet::findOrFail($fleetId);
         $language = $request->auth->language;
-        if ($fleet->owner_id != $request->auth->id)
+        if ($fleet->owner_id != $request->auth->id) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('origin_fleet_not_your', $language)], 200);
+        }
 
         $shipId = $request->input('shipId');
         $targetFleetId = $request->input('targetFleet');
         $quantity = $request->input('quantity');
 
         $targetFleet = Fleet::findOrFail($targetFleetId);
-        if ($targetFleet->owner_id != $request->auth->id)
+        if ($targetFleet->owner_id != $request->auth->id) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('target_fleet_not_your', $language)], 200);
-        if ($targetFleet->coordinate_id != $fleet->coordinate_id)
+        }
+        if ($targetFleet->coordinate_id != $fleet->coordinate_id) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('fleet_coordinates_not_match', $language)], 200);
+        }
 
         $shipInOriginFleet = $fleet->ships->where('ship_id', $shipId)->first();
-        if (is_null($shipInOriginFleet))
+        if (is_null($shipInOriginFleet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('no_ships_of_given_type_in_fleet', $language)], 200);
+        }
 
-        if ($shipInOriginFleet->quantity < $quantity)
+        if ($shipInOriginFleet->quantity < $quantity) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('not_enough_ships', $language)], 200);
+        }
 
         $shipInTargetFleet = $targetFleet->ships->where('ship_id', $shipId)->first();
 
         if ($quantity < 0) {
-            if (is_null($shipInTargetFleet))
+            if (is_null($shipInTargetFleet)) {
                 return response()->json(['status' => 'error', 'message' => MessagesController::i18n('no_ships_of_given_type_in_fleet', $language)], 200);
+            }
 
-            if ($shipInTargetFleet->quantity < -$quantity)
+            if ($shipInTargetFleet->quantity < -$quantity) {
                 return response()->json(['status' => 'error', 'message' => MessagesController::i18n('not_enough_ships', $language)], 200);
+            }
         }
 
         //нет заданных кораблей в конечном флоте
@@ -490,23 +500,26 @@ class ShipController extends Controller
     {
         //нашли планету
         $planet = Planet::find($planetId);
-        if (!$planet)
+        if (!$planet) {
             return response()->json(['status' => 'error', 'message' => 'no planet found'], 403);
+        }
 
         //нашли корабль
         $ship = Ship::find($shipId);
-        if (!$ship)
+        if (!$ship) {
             return response()->json(['status' => 'error', 'message' => 'no ship found'], 403);
+        }
 
         //check que
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
-        if (!empty($ref['ships']))
+        if (!empty($ref['ships'])) {
             $ref = $ref['ships'];
+        }
 
         $shipDetails = app('App\Http\Controllers\ResourceController')->parseAll(User::find($planet->owner_id), $ship, 1, $planetId);
 
         //que check
-        if (!empty($ref['shipStartTime']) && !empty(($ref['shipQuantityQued'] > 0)))
+        if (!empty($ref['shipStartTime']) && !empty(($ref['shipQuantityQued'] > 0))) {
             return response()->json(['status' => 'error',
                 'message' => 'que is not empty',
                 'shipQuantityQued' => $ref['shipQuantityQued'],
@@ -515,6 +528,7 @@ class ShipController extends Controller
                 'shipTimePassedFromLast' => $ref['shipTimePassedFromLast'],
                 'fullQueTimeRemain' => $ref['shipOneTimeToBuild'] * $ref['shipQuantityRemain'] - $ref['shipTimePassedFromLast'],
             ], 403);
+        }
 
         $planetShip = PlanetShip::where('planet_id', $planetId)
             ->where('ship_id', $shipId)
@@ -538,8 +552,9 @@ class ShipController extends Controller
             'gas' => $shipDetails['cost']['gas'] * $quantity,
         ];
 
-        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources))
+        if (!app('App\Http\Controllers\BuildingController')->checkResourcesAvailable($planet, $resources)) {
             return response()->json(['status' => 'error', 'message' => 'no resources'], 403);
+        }
 
         app('App\Http\Controllers\BuildingController')->buy($planet, $resources);
 
@@ -575,14 +590,16 @@ class ShipController extends Controller
         $language = $request->auth->language;
 
         $planet = Planet::find($planetId);
-        if (empty($planet))
+        if (empty($planet)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_found', $language)], 403);
+        }
 
         $user = User::find($request->auth->id);
         $owner = User::find($planet->owner_id);
 
-        if ($user != $owner)
+        if ($user != $owner) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('planet_not_yours', $language)], 403);
+        }
 
         $ref = app('App\Http\Controllers\BuildingController')->refreshPlanet($request, $planet);
         $ref = $ref['ships'];
@@ -591,8 +608,9 @@ class ShipController extends Controller
         $planetShip = $planet->ships()->find($sid);
 
         //que check
-        if (empty($ref['shipStartTime']) || empty($planetShip->pivot->quantityQued))
+        if (empty($ref['shipStartTime']) || empty($planetShip->pivot->quantityQued)) {
             return response()->json(['status' => 'error', 'message' => MessagesController::i18n('ship_que_empty', $language)], 403);
+        }
 
         //resources refund
         $resources = app('App\Http\Controllers\ResourceController')
@@ -679,10 +697,11 @@ class ShipController extends Controller
 
         foreach ($fleetList as $fleet) {
             //fleet props
-            if ($fleet->owner_id == $authId)
+            if ($fleet->owner_id == $authId) {
                 $belongTo = 'self';
-            elseif ($alliance->contains($fleet->owner_id))
+            } elseif ($alliance->contains($fleet->owner_id)) {
                 $belongTo = 'alliance';
+            }
 
             $res[$fleet->coordinate_id][$belongTo][$fleet->owner_id][$fleet->id] = [
                 'captain' => $fleet->captain
@@ -728,10 +747,11 @@ class ShipController extends Controller
 
         foreach ($fleetList as $fleet) {
             foreach ($fleet->ships as $ship) {
-                if (!empty($shipsAtPlanet[$ship->ship_id]))
+                if (!empty($shipsAtPlanet[$ship->ship_id])) {
                     $shipsAtPlanet[$ship->ship_id] += $ship->quantity;
-                else
+                } else {
                     $shipsAtPlanet[$ship->ship_id] = $ship->quantity;
+                }
             }
         }
 
@@ -793,10 +813,11 @@ class ShipController extends Controller
                     $re['updated_at'] = Carbon::now()->format('Y-m-d H:i:s');
                 }
             }
-            if (!empty($shipsAtPlanet[$shipAvailable->id]))
+            if (!empty($shipsAtPlanet[$shipAvailable->id])) {
                 $re['quantity'] = $shipsAtPlanet[$shipAvailable->id];
-            else
+            } else {
                 $re['quantity'] = 0;
+            }
 
             $res[] = $re;
         }
@@ -819,6 +840,4 @@ class ShipController extends Controller
             ->get();
         return response()->json($res, 200);
     }
-
-
 }

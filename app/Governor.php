@@ -48,10 +48,4 @@ class Governor extends Model
     {
         return $this->belongsTo(Planet::class);
     }
-
-
-
-
 }
-
-

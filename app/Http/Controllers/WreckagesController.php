@@ -36,6 +36,4 @@ class WreckagesController extends Controller
         return ['metal' => $res['metal'],
             'crystal' => $res['crystal']];
     }
-
-
 }

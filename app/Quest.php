@@ -48,7 +48,4 @@ class Quest
     {
         return $this->hasMany(Quest::class, 'parent_id');
     }
-
 }
-
-

@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Faker\Factory;
 
-
 /**
  * Class UserController
  * @package App\Http\Controllers
@@ -37,8 +36,9 @@ class UserController extends Controller
     {
         $users = User::all();
         foreach ($users as $user) {
-            if ($user->id != $request->auth->id)
+            if ($user->id != $request->auth->id) {
                 $user->makeHidden(['created_at', 'updated_at', 'remember_token', 'email']);
+            }
         }
 
         return response()->json($users);
@@ -52,9 +52,9 @@ class UserController extends Controller
      */
     public function showOneUser(Request $request, $id)
     {
-        if ($id == $request->auth->id)
+        if ($id == $request->auth->id) {
             return response()->json(User::find($id));
-        else {
+        } else {
             $user = User::find($id);
             $user->makeHidden(['created_at', 'updated_at', 'remember_token', 'email']);
             return response()->json($user);
@@ -65,8 +65,9 @@ class UserController extends Controller
     {
         $newCoordinates = $this->getFirstRandomUnoccupiedSystem();
 
-        if ($newCoordinates['count'] == 0)
+        if ($newCoordinates['count'] == 0) {
             app(PlanetController::class)->seedSolarSystem($newCoordinates['x'], $newCoordinates['y']);
+        }
 
         $planet = app(PlanetController::class)->chooseUnoccupied($newCoordinates['x'], $newCoordinates['y']);
 
@@ -89,7 +90,7 @@ class UserController extends Controller
 
         $faker = Factory::create();
 
-        $password = $faker->password(20,20);
+        $password = $faker->password(20, 20);
 
         $email = $newCoordinates['x'].'.'.
             $newCoordinates['y'].'.'.
@@ -125,7 +126,8 @@ class UserController extends Controller
     {
         $x = rand(0, Config::get('constants.galaxy.dimensions.x'));
         $y = rand(0, Config::get('constants.galaxy.dimensions.y'));
-        $o = rand(Config::get('constants.galaxy.dimensions.orbit.min_inhabited'),
+        $o = rand(
+            Config::get('constants.galaxy.dimensions.orbit.min_inhabited'),
             Config::get('constants.galaxy.dimensions.orbit.max_inhabited')
         );
 
@@ -146,7 +148,6 @@ class UserController extends Controller
             'o' => $o,
             'count' => $users,
         ];
-
     }
 
     /**
@@ -286,5 +287,3 @@ class UserController extends Controller
         return $meta;
     }
 }
-
-

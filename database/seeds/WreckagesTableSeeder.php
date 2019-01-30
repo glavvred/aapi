@@ -13,7 +13,5 @@ class WreckagesTableSeeder extends Seeder
     {
 //        // create 10000 wreckages using factory
         factory(App\Wreckage::class, 1)->create();
-
-
     }
 }

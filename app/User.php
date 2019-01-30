@@ -34,9 +34,8 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     public $scope;
 
     public function planets()
-
     {
-        return $this->hasMany(Planet::class,'owner_id');
+        return $this->hasMany(Planet::class, 'owner_id');
     }
 
     /**
@@ -45,7 +44,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      */
     public function technologies() : BelongsToMany
     {
-        return $this->belongsToMany(Technology::class,'user_technologies', 'owner_id')
+        return $this->belongsToMany(Technology::class, 'user_technologies', 'owner_id')
             ->withPivot(['level',
                 'startTime',
                 'timeToBuild',
@@ -79,11 +78,4 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     {
         return $this->language;
     }
-
-
-
 }
-
-
-
-

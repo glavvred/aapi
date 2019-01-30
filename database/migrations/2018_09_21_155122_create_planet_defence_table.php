@@ -31,7 +31,6 @@ class CreatePlanetDefenceTable extends Migration
             $table->integer('timeToBuildOne')->unsigned()->nullable();
             $table->integer('passedFromLastOne')->unsigned()->nullable();
             $table->timestamps();
-
         });
     }
 

@@ -17,10 +17,11 @@ class RouteController extends BaseController
     {
         $origin = $fleet->coordinate()->first();
 
-        if (($origin->coordinateX != $destination->coordinateX) || ($origin->coordinateX != $destination->coordinateX))
+        if (($origin->coordinateX != $destination->coordinateX) || ($origin->coordinateX != $destination->coordinateX)) {
             return response()->json(['status' => 'error',
                 'message' =>  MessagesController::i18n('planets_system_differ', $request->auth->language),
                 'time_remain' => $ref['buildingTimeRemain']], 403);
+        }
 
         // todo                   ==
         $reverse = $origin->orbit > $destination->orbit;
@@ -62,7 +63,6 @@ class RouteController extends BaseController
             $startTime = Carbon::now()->addSeconds(Config::get('constants.time.interplanetary') * $i)->format('Y-m-d H:i:s');
             $parent = RouteController::add($fleet, $startTime, $previous, $currentStep, $order, $parent, $param);
             $previous = $currentStep;
-
         }
 
         die;
@@ -76,17 +76,20 @@ class RouteController extends BaseController
 
     public static function add(Fleet $fleet, $startTime = null, Planet $origin, Planet $destination, int $order, Route $parent = null, $param = '')
     {
-        if (empty($startTime))
+        if (empty($startTime)) {
             $startTime = Carbon::now()->format('Y-m-d H:i:s');
+        }
 
         $route = new Route();
         $route->fleet_id = $fleet->id;
         $route->coordinate_id = $origin->id;
         $route->destination_id = $destination->id;
-        if (!empty($parent))
+        if (!empty($parent)) {
             $route->parent_id = $parent->id;
-        if (!empty($param))
+        }
+        if (!empty($param)) {
             $route->order_param = $param;
+        }
         $route->order_id = $order;
         $route->start_time = $startTime;
 
@@ -98,20 +101,21 @@ class RouteController extends BaseController
 
     public function getByFleet(Fleet $fleet)
     {
-
     }
 
     public function getByCoordinate(Planet $destination)
     {
-
     }
 
     public function update(Request $request)
     {
-        $routesToUpdate = Route::where('start_time', '<',
+        $routesToUpdate = Route::where(
+            'start_time',
+            '<',
             Carbon::now()
                 ->addSeconds(Config::get('constants.time.interplanetary'))
-                ->format('Y-m-d H:i:s'))
+            ->format('Y-m-d H:i:s')
+        )
             ->orderBy('start_time', 'DESC')
             ->get();
 
@@ -122,9 +126,9 @@ class RouteController extends BaseController
                 foreach ($collisionFleet as $fleet) {
                     $this->autoBattle($route->fleet(), $fleet);
                 }
-            }
-            else
+            } else {
                 echo " no collision" . "\r\n";
+            }
         }
 
         die;
@@ -160,7 +164,6 @@ class RouteController extends BaseController
             if ($foreignFleet->order()->type == 2) {
                 $collisions[] = $foreignFleet;
             }
-
         }
         return !empty($collisions) ? $collisions : null;
     }
@@ -188,6 +191,4 @@ class RouteController extends BaseController
         echo "\r\n";
         echo "\r\n";
     }
-
-
 }
