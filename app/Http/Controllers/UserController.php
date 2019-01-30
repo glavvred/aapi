@@ -181,7 +181,7 @@ class UserController extends Controller
             'email' => 'email|unique:users'
         ];
 
-        $response = array('response' => '', 'success' => false);
+        $response = ['response' => '', 'success' => false];
         $validator = Validator::make($request->all(), $rules);
         if ($validator->fails()) {
             $response['response'] = $validator->messages();
